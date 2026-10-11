@@ -9,6 +9,7 @@ extends Node
 ##   --at=<col>,<lin>   posição inicial na sala (célula)
 ##   --demo=<rota>      a Vela anda sozinha seguindo uma rota de tools/demo_routes.gd
 ##   --shot=<arquivo>   salva um print depois de --frames=<n> frames e fecha
+##   --autostart        sai da tela de título sozinho (para gravar a intro)
 
 enum Mode { TITLE, PLAY, TRANSITION, REST }
 
@@ -233,6 +234,8 @@ func _physics_process(delta: float) -> void:
 		Mode.TITLE:
 			_title_t += delta
 			camera.position.y = VIEW.y * 0.5 + sin(_title_t * 0.35) * 8.0
+			if _args.has("autostart") and _title_t > 2.0:
+				_start_game()
 			return
 		Mode.TRANSITION:
 			return

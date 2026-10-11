@@ -9,6 +9,10 @@ uniform vec4 edge_color : source_color = vec4(0.29, 0.34, 0.40, 1.0);
 uniform vec4 mid_color : source_color = vec4(0.145, 0.176, 0.22, 1.0);
 uniform vec4 deep_color : source_color = vec4(0.043, 0.055, 0.075, 1.0);
 uniform vec2 offset = vec2(0.0);
+// Rocha profunda se dissolve no escuro e deixa o fundo aparecer.
+uniform float fade_start = 2.4;
+uniform float fade_end = 5.5;
+uniform float min_alpha = 0.3;
 
 varying vec2 world;
 
@@ -29,5 +33,6 @@ void fragment() {
 	col *= 0.95 + 0.07 * grain;
 	float crack = 1.0 - smoothstep(0.0, 0.018, abs(vela_fbm(p * 0.011 + 3.7) - 0.5));
 	col *= 1.0 - crack * 0.45 * smoothstep(0.7, 1.8, d);
-	COLOR = vec4(col, 1.0) * COLOR;
+	float alpha = mix(1.0, min_alpha, smoothstep(fade_start, fade_end, d + (n - 0.5) * 1.2));
+	COLOR = vec4(col, alpha) * COLOR;
 }

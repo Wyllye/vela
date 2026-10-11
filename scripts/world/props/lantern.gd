@@ -65,8 +65,11 @@ func on_struck(player: Player, dir: int, is_pogo: bool) -> bool:
 func _process(delta: float) -> void:
 	bob_t += delta
 	if not floating:
-		swing_v += (-swing * (980.0 / maxf(chain_len, 40.0)) - swing_v * 1.4) * delta
-		swing += swing_v * delta
+		var steps := maxi(1, ceili(delta / 0.01))
+		var h := delta / steps
+		for i in steps:
+			swing_v += (-swing * (980.0 / maxf(chain_len, 40.0)) - swing_v * 1.4) * h
+			swing += swing_v * h
 	flare = move_toward(flare, 0.0, delta * 1.8)
 	_place()
 	queue_redraw()

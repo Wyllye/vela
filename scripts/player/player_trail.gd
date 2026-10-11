@@ -2,8 +2,8 @@ class_name PlayerTrail
 extends Node2D
 ## Imagens residuais do Passo de Ren: silhuetas de aura que ficam para trás.
 
-const LIFE := 0.32
-const EVERY := 0.018
+const LIFE := 0.26
+const EVERY := 0.01
 
 var player: Player
 var color := Color("ffc56a")
@@ -40,9 +40,10 @@ func _draw() -> void:
 		var k: float = s["life"] / LIFE
 		var p: Vector2 = s["pos"]
 		var f: int = s["facing"]
-		var c := Color(color, 0.32 * k)
+		var c := Color(color, 0.16 * k * k)
+		var stretch := 1.0 + (1.0 - k) * 0.6
 		var robe := PackedVector2Array([
-			p + Vector2(-8.0 * f, -30), p + Vector2(8.0 * f, -29), p + Vector2(13.0 * f, -4),
-			p + Vector2(-13.0 * f, -5)])
+			p + Vector2(-9.0 * f * stretch, -30), p + Vector2(8.0 * f, -29), p + Vector2(13.0 * f, -4),
+			p + Vector2(-14.0 * f * stretch, -5)])
 		draw_colored_polygon(robe, c)
-		draw_circle(p + Vector2(2.0 * f, -38.5), 10.0, c)
+		draw_circle(p + Vector2(2.0 * f, -38.5), 10.0 * (0.8 + 0.2 * k), c)

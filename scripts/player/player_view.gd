@@ -153,9 +153,9 @@ func _process(delta: float) -> void:
 	t += delta
 	var p := player
 	var st := p.state
-	# molas
-	sq_v += (-(sq - Vector2.ONE) * 420.0 - sq_v * 21.0) * delta
-	sq += sq_v * delta
+	# molas: subpassos curtos (estável mesmo com FPS baixo)
+	var steps := maxi(1, ceili(delta / 0.008))
+	var h := delta / steps
 	var lean_target := clampf(p.vel.x / p.tuning.run_speed, -1.3, 1.3) * (0.085 if p.grounded else 0.05)
 	if st == Player.State.DASH:
 		lean_target = p.dash_dir * 0.18
@@ -163,17 +163,20 @@ func _process(delta: float) -> void:
 	var cloak_target := Vector2(-p.vel.x * p.facing * 0.014, -p.vel.y * 0.0075).clamp(Vector2(-8, -7), Vector2(6, 4))
 	if p.wall_sliding:
 		cloak_target = Vector2(2.0, -5.0)
-	cloak_v += ((cloak_target - cloak) * 160.0 - cloak_v * 13.0) * delta
-	cloak += cloak_v * delta
+	for i in steps:
+		sq_v += (-(sq - Vector2.ONE) * 420.0 - sq_v * 21.0) * h
+		sq += sq_v * h
+		cloak_v += ((cloak_target - cloak) * 160.0 - cloak_v * 13.0) * h
+		cloak += cloak_v * h
+		ring_v += (-ring_a * 120.0 - ring_v * 7.0 - p.vel.x * 0.004 * p.facing) * h
+		ring_a = clampf(ring_a + ring_v * h, -0.9, 0.9)
+	sq = sq.clamp(Vector2(0.5, 0.5), Vector2(1.7, 1.7))
 	# passos e balanço do corpo
 	if p.grounded and absf(p.vel.x) > 30.0:
 		run_phase += absf(p.vel.x) * delta * 0.042
 		bob = -absf(sin(run_phase * PI)) * 2.2
 	else:
 		bob = lerpf(bob, sin(t * 2.2) * 0.6 if p.grounded else 0.0, 1.0 - exp(-10.0 * delta))
-	# anéis do cajado (pêndulo)
-	ring_v += (-ring_a * 120.0 - ring_v * 7.0 - p.vel.x * 0.004 * p.facing) * delta
-	ring_a = clampf(ring_a + ring_v * delta, -0.9, 0.9)
 	# piscar
 	next_blink -= delta
 	if next_blink <= 0.0:
