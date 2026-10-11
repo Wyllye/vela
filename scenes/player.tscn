@@ -1,0 +1,16 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/player.gd" id="1_player"]
+[ext_resource type="Resource" path="res://resources/movement_tuning.tres" id="2_tuning"]
+[ext_resource type="Script" path="res://scripts/player/player_view.gd" id="3_view"]
+[ext_resource type="Script" path="res://scripts/player/player_trail.gd" id="4_trail"]
+
+[node name="Player" type="Node2D"]
+script = ExtResource("1_player")
+tuning = ExtResource("2_tuning")
+
+[node name="Trail" type="Node2D" parent="."]
+script = ExtResource("4_trail")
+
+[node name="View" type="Node2D" parent="."]
+script = ExtResource("3_view")
