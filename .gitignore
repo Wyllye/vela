@@ -4,9 +4,6 @@ build/
 export_credentials.cfg
 *.tmp
 
-# Traduções geradas a partir de locale/textos.csv na importação
-locale/*.translation
-
 # Ferramentas
 tools/audio/__pycache__/
 tools/audio/out/

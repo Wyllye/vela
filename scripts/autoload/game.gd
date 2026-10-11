@@ -15,6 +15,11 @@ func _ready() -> void:
 		music_on = bool(cfg.get_value("audio", "musica", true))
 
 
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+	FX.cleanup()
+
+
 func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("audio", "musica", music_on)

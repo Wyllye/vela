@@ -32,6 +32,14 @@ static func glow_texture() -> Texture2D:
 	return _glow_tex
 
 
+## Solta as texturas guardadas em variáveis estáticas (chamado ao fechar o jogo).
+static func cleanup() -> void:
+	_light_tex = null
+	_dot_tex = null
+	_glow_tex = null
+	_add_mat = null
+
+
 static func additive() -> CanvasItemMaterial:
 	if _add_mat == null:
 		_add_mat = CanvasItemMaterial.new()

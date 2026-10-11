@@ -41,6 +41,21 @@ func _ready() -> void:
 	_apply_music_mute()
 
 
+func _exit_tree() -> void:
+	# Para tudo e solta os streams, para o Godot não reclamar de recursos vivos ao fechar.
+	for p in _music + _pool + [_ambience]:
+		if is_instance_valid(p):
+			p.stop()
+			p.stream = null
+	for p in _loops.values():
+		if is_instance_valid(p):
+			p.stop()
+			p.stream = null
+	_loops.clear()
+	_cache.clear()
+	_tweens.clear()
+
+
 func _setup_buses() -> void:
 	for bus_name in ["Music", "SFX", "Ambience"]:
 		if AudioServer.get_bus_index(bus_name) == -1:
