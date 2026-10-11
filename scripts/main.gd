@@ -10,6 +10,7 @@ extends Node
 ##   --demo=<rota>      a Vela anda sozinha seguindo uma rota de tools/demo_routes.gd
 ##   --shot=<arquivo>   salva um print depois de --frames=<n> frames e fecha
 ##   --autostart        sai da tela de título sozinho (para gravar a intro)
+##   --clean            sem granulação de filme (capturas e GIFs menores)
 
 enum Mode { TITLE, PLAY, TRANSITION, REST }
 
@@ -50,6 +51,9 @@ func _ready() -> void:
 	_debug_draw.visible = false
 	world.add_child(_debug_draw)
 
+	if _args.has("clean"):
+		var post := $Post/Vignette as ColorRect
+		(post.material as ShaderMaterial).set_shader_parameter("grain", 0.0)
 	if _args.has("room"):
 		_start_direct(str(_args["room"]))
 		return
@@ -74,9 +78,7 @@ func _start_direct(room_id: String) -> void:
 		cell = Vector2i(int(parts[0]), int(parts[1]))
 	_place_at_cell(cell)
 	if _args.has("demo"):
-		var si := ScriptedInput.new()
-		si.timeline = DemoRoutes.get_route(str(_args["demo"]))
-		player.input = si
+		player.input = DemoRoutes.make_input(str(_args["demo"]), player, room)
 	AudioManager.play_music(room.data.music, 0.5)
 
 

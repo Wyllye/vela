@@ -26,3 +26,15 @@ const ROUTES := {
 
 static func get_route(route_name: String) -> Array:
 	return ROUTES.get(route_name, [])
+
+
+## Entrada da demo: rota roteirizada ou, nas lanternas, o piloto que quica.
+static func make_input(route_name: String, player: Player, room: Room) -> PlayerInput:
+	if route_name == "lanternas":
+		var pilot := DemoPilot.new()
+		pilot.player = player
+		pilot.lanterns = room.strikeables
+		return pilot
+	var si := ScriptedInput.new()
+	si.timeline = get_route(route_name)
+	return si
