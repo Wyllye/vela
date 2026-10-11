@@ -1,0 +1,66 @@
+keys,pt_BR
+TITLE_GAME,VELA
+TITLE_SUB,Vesperal
+TITLE_PRESS,Pressione qualquer botão
+TITLE_BUILD,Etapa 1 · Movimentação
+AREA_POCO,Poço do Despertar
+AREA_POCO_SUB,Vesperal
+INSC_POCO_1,"Ninguém morre da queda no Poço.
+Morre de deixar a chama escorrer."
+INSC_GALERIA_1,"""Corram sem olhar para baixo"", dizia a Mestra do Arco.
+""O chão só existe para quem hesita."""
+INSC_GALERIA_2,"Toda manhã os noviços subiam pelas paredes do poço.
+A pedra ainda guarda o calor das mãos deles."
+INSC_LANTERNAS_1,"Ninguém atravessa esta câmara andando.
+Golpeie para baixo. Confie na luz."
+INSC_LANTERNAS_2,"Ficou na ilha acendendo as lanternas para os que vinham atrás.
+Ainda acendem."
+INSC_LIMIAR_1,"Acima fica o Claustro das Velas.
+Alguém ainda acende as velas lá em cima.
+Ninguém sabe quem."
+GLYPH_POCO_1,"Ela jurou que nenhuma chama se apagaria.
+E nenhuma se apagou. Todas pararam."
+GLYPH_LANTERNAS_1,"Paramos de sentir medo todos no mesmo instante.
+Foi assim que soubemos."
+REST_PROMPT,Descansar
+END_TITLE,Fim da Etapa 1
+END_SUB,Movimentação
+END_NEXT,A seguir: combate e os fundamentos do Nen
+END_CONTINUE,Pressione um botão para continuar explorando
+PAUSE_TITLE,Pausa
+PAUSE_RESUME,Esc / Start  —  voltar ao jogo
+PAUSE_MUSIC,M  —  música: %s
+PAUSE_ON,ligada
+PAUSE_OFF,desligada
+PAUSE_DEBUG,F3  —  informações de depuração
+CTRL_MOVE,Mover
+CTRL_JUMP,Pular (segure para ir mais alto)
+CTRL_ATTACK,Golpe do cajado · ↑ mira para cima · ↓ no ar = pogo
+CTRL_DASH,Passo de Ren (dash)
+CTRL_MOVE_KEYS,← → ↑ ↓  ou  WASD  ·  analógico
+CTRL_JUMP_KEYS,Z  ou  Espaço  ·  A
+CTRL_ATTACK_KEYS,X  ou  J  ·  X
+CTRL_DASH_KEYS,C  ou  K  ou  Shift  ·  RB / RT
+NEN_TEN,Ten
+NEN_ZETSU,Zetsu
+NEN_REN,Ren
+NEN_HATSU,Hatsu
+NEN_GYO,Gyo
+NEN_EN,En
+NEN_IN,In
+NEN_SHU,Shu
+NEN_KO,Ko
+NEN_KEN,Ken
+NEN_RYU,Ryu
+NEN_TYPE_ENHANCER,Intensificação
+NEN_TYPE_TRANSMUTER,Transmutação
+NEN_TYPE_EMITTER,Emissão
+NEN_TYPE_CONJURER,Conjuração
+NEN_TYPE_MANIPULATOR,Manipulação
+NEN_TYPE_SPECIALIST,Especialização
+NEN_WATER_DIVINATION,Adivinhação da Água
+NEN_VOWS,Restrições e Juramentos
+NEN_POSTHUMOUS,Nen póstumo
+SKILL_DASH,Passo de Ren
+SKILL_WALL,Aderência
+SKILL_AIR_JUMP,Sopro
