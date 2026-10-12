@@ -420,6 +420,7 @@ func _rest(a: Altar) -> void:
 	if mode != Mode.REST:
 		return
 	if room.data.altar_lesson == "end":
+		ui.show_hud(false)
 		ui.show_end_card()
 	else:
 		_rest_ready = true
@@ -451,6 +452,7 @@ func _wants_to_stand(inp: PlayerInput) -> bool:
 func _leave_rest() -> void:
 	if ui.end_card_visible:
 		ui.hide_end_card()
+		ui.show_hud(true)
 	_rest_ready = false
 	player.stand_up()
 	mode = Mode.PLAY

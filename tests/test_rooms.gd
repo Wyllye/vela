@@ -187,3 +187,47 @@ func test_vows_exit_needs_ren() -> void:
 			out = true
 			break
 	check(out, "o Ren racha a casca e a porta abre")
+
+
+## Pula de onde a Vela está, correndo para `dir`, e devolve a célula onde ela pousou.
+func _jump_to(p: Player, dir: int, run_frames: int, hold_jump: int) -> Vector2i:
+	var key := &"move_right" if dir > 0 else &"move_left"
+	inp(p).set_held(key, true)
+	run(p, run_frames)
+	inp(p).set_held(&"jump", true)
+	run(p, hold_jump)
+	inp(p).set_held(&"jump", false)
+	for i in 120:
+		p.step(DT)
+		if p.grounded and p.vel.y >= 0.0:
+			break
+	inp(p).set_held(key, false)
+	run(p, 12)
+	var f := p.body.feet()
+	return Vector2i(floori(f.x / 32.0), floori((f.y - 1.0) / 32.0))
+
+
+func test_vows_chamber_climb_reaches_the_sealed_exit() -> void:
+	var p := _room_player("votos", Vector2i(21, 25))
+	run(p, 5)
+	var c := _jump_to(p, 1, 6, 20)
+	check(c.y == 22 and c.x >= 25 and c.x <= 39, "chão → tablado (pousou em %s)" % c)
+	p.body.pos.x = 37 * 32.0
+	c = _jump_to(p, 1, 8, 24)
+	check(c.y == 18 and c.x >= 42 and c.x <= 47, "tablado → plataforma da direita (pousou em %s)" % c)
+	p.body.pos.x = 46 * 32.0
+	c = _jump_to(p, 1, 2, 18)
+	check(c.y == 16 and c.x >= 50 and c.x <= 55, "plataforma → plataforma alta (pousou em %s)" % c)
+	p.body.pos.x = 54 * 32.0
+	c = _jump_to(p, 1, 2, 18)
+	check(c.y == 13 and c.x >= 57 and c.x <= 59, "plataforma alta → saída lacrada (pousou em %s)" % c)
+
+
+func test_dormitory_bunks_are_reachable() -> void:
+	var p := _room_player("dormitorio", Vector2i(10, 21))
+	run(p, 5)
+	var c := _jump_to(p, 1, 4, 22)
+	check(c.y == 17 and c.x >= 13 and c.x <= 17, "chão → beliche de baixo (pousou em %s)" % c)
+	p.body.pos.x = 16 * 32.0
+	c = _jump_to(p, 1, 2, 22)
+	check(c.y == 13 and c.x >= 17 and c.x <= 21, "beliche de baixo → de cima (pousou em %s)" % c)
