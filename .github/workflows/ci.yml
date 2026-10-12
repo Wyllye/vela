@@ -31,7 +31,8 @@ jobs:
   web:
     name: Build web (GitHub Pages)
     needs: testes
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Push na main ou o botão "Run workflow" (útil logo depois de ativar o Pages).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
