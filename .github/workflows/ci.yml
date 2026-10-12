@@ -28,6 +28,14 @@ jobs:
       - name: Rodar os testes
         run: ./godot --headless --path . -s res://tests/run_tests.gd
 
+      # O jogo de verdade, a 60 quadros por segundo, com a Vela lutando sozinha:
+      # se algo congelar o jogo (como o hit-stop já fez), o tempo de jogo para e
+      # o timeout derruba o passo.
+      - name: Teste de fumaça (combate sem congelar)
+        run: |
+          timeout 120 ./godot --headless --path . --max-fps 60 -- --room=votos --at=31,22 --demo=combate --smoke=12
+          timeout 120 ./godot --headless --path . --max-fps 60 -- --room=dormitorio --at=40,21 --demo=combate --smoke=12
+
   web:
     name: Build web (GitHub Pages)
     needs: testes

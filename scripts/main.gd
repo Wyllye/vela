@@ -12,6 +12,8 @@ extends Node
 ##   --shade=<col>,<lin> põe o Eco póstumo da Vela nessa célula da sala inicial
 ##   --vit=<n>          começa com n gotas de cera
 ##   --hold=<ações>     segura ações: ren@1-3,move_right@0-2,zetsu (capturas)
+##   --smoke=<s>        fecha depois de s segundos de jogo (teste de fumaça do CI: se o
+##                      jogo congelar, o tempo de jogo para de correr e o CI estoura)
 ##   --demo=<rota>      a Vela anda sozinha seguindo uma rota de tools/demo_routes.gd
 ##   --shot=<arquivo>   salva um print depois de --frames=<n> frames e fecha
 ##   --autostart        sai da tela de título sozinho (para gravar a intro)
@@ -46,6 +48,8 @@ var _rest_ready := false
 var _button_wait := false
 var _args: Dictionary = {}
 var _frames := 0
+## Tempo de jogo de verdade (soma dos deltas; para durante o hit-stop).
+var _game_time := 0.0
 var _debug_draw: DebugDraw
 
 
@@ -305,6 +309,11 @@ func _physics_process(delta: float) -> void:
 	_frames += 1
 	if _args.has("shot") and _frames == int(_args.get("frames", 90)):
 		_take_shot(str(_args["shot"]))
+	_game_time += delta
+	if _args.has("smoke") and _game_time >= float(_args["smoke"]):
+		print("teste de fumaça: %.1f s de jogo, %d quadros, vitalidade %d, mortes %d, golpes em Ecos %d" % [
+			_game_time, _frames, player.vitality, player.deaths, player.style["strikes"]])
+		get_tree().quit()
 	match mode:
 		Mode.TITLE:
 			_title_t += delta

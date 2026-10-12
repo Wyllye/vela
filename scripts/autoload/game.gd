@@ -3,10 +3,13 @@ extends Node
 ## partida atual (salvar em disco entra na Etapa 5).
 
 const SETTINGS_PATH := "user://configuracoes.cfg"
+## Nenhum hit-stop passa disto, aconteça o que acontecer.
+const MAX_HITSTOP := 0.4
 
 var debug := false
 var music_on := true
-var _hitstop_until := 0
+## Fim do hit-stop atual, em microssegundos do relógio real.
+var _hitstop_end_us := 0
 
 ## Sala do último altar em que a Vela descansou (onde ela renasce).
 var respawn_room := "poco_fundo"
@@ -47,14 +50,29 @@ func save_settings() -> void:
 
 
 ## Congela o jogo por alguns milissegundos para dar peso a um impacto.
-func hitstop(seconds: float) -> void:
+## O fim é conferido a cada quadro contra o relógio real. (Antes era um timer:
+## ele contava o quadro em que nasceu e disparava um quadro cedo; a checagem
+## falhava e o jogo ficava parado para sempre.)
+func hitstop(seconds: float, now_us: int = -1) -> void:
 	if seconds <= 0.0:
 		return
-	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
-	if until <= _hitstop_until:
-		return
-	_hitstop_until = until
+	if now_us < 0:
+		now_us = Time.get_ticks_usec()
+	var end := now_us + int(minf(seconds, MAX_HITSTOP) * 1000000.0)
+	if end > _hitstop_end_us:
+		_hitstop_end_us = end
 	Engine.time_scale = 0.0
-	await get_tree().create_timer(seconds, true, false, true).timeout
-	if Time.get_ticks_msec() >= _hitstop_until - 2:
+
+
+## Solta o hit-stop quando o prazo passa (roda todo quadro, mesmo congelado).
+func update_hitstop(now_us: int = -1) -> void:
+	if Engine.time_scale != 0.0:
+		return
+	if now_us < 0:
+		now_us = Time.get_ticks_usec()
+	if now_us >= _hitstop_end_us:
 		Engine.time_scale = 1.0
+
+
+func _process(_delta: float) -> void:
+	update_hitstop()
