@@ -11,6 +11,7 @@ var tablets: Array[Tablet] = []
 var altars: Array[Altar] = []
 var glyphs: Array[AuraGlyph] = []
 var bells: Array[Bell] = []
+var murals: Array[Mural] = []
 var strikeables: Array = []
 var ecos: Array = []
 var spawn_cell := Vector2i(-1, -1)
@@ -46,8 +47,14 @@ func build(rd: RoomData, background: CanvasLayer) -> void:
 	_add_backdrop(background, Backdrop.Kind.PILLARS, 0.55, true, s)
 	_add_fog(background, 0.62, true, 0.14, s + 1)
 
-	# parede do fundo, iluminada
+	# parede do fundo, iluminada (e os murais pintados nela)
 	_add_backdrop(self, Backdrop.Kind.BACKWALL, 0.9, false, s)
+	for m in rd.murals:
+		var mu := Mural.new()
+		mu.setup(m, s + murals.size(), Vector2(1280, 720))
+		add_child(mu)
+		_layers.append(mu)
+		murals.append(mu)
 	_add_fog(self, 0.93, false, 0.06, s + 2)
 
 	for shaft_data in rd.light_shafts:
@@ -94,6 +101,8 @@ func build(rd: RoomData, background: CanvasLayer) -> void:
 	add_child(aura_layer)
 	for gl in glyphs:
 		gl.layer = aura_layer
+	for mu in murals:
+		mu.layer = aura_layer
 	_add_dust(size)
 
 	_add_backdrop(self, Backdrop.Kind.FOREGROUND, 1.22, false, s)
@@ -252,6 +261,16 @@ func _spawn_props() -> void:
 				chn.setup(rng.randf_range(70, 200), rng.randf() * TAU)
 				chn.position = Vector2((cell.x + 0.5) * TS, (ceil_h + 1) * TS if ceil_h >= 0 else cell.y * TS)
 				props.add_child(chn)
+			"l":
+				var sh := Shelf.new()
+				sh.setup(data.rng_seed * 13 + cell.x * 7 + cell.y)
+				sh.position = base + Vector2(rng.randf_range(-4, 4), 0)
+				props.add_child(sh)
+			"w":
+				var lc := Lectern.new()
+				lc.setup(cell.x + cell.y)
+				lc.position = base
+				props.add_child(lc)
 			"r":
 				var rb := Rubble.new()
 				rb.setup(palette, data.rng_seed + cell.x * 7 + cell.y)
@@ -304,13 +323,16 @@ func step_ecos(dt: float, player: Player) -> void:
 	Eco.update_all(ecos, dt, player)
 
 
-## Zetsu: o mundo escurece um pouco junto com a chama da Vela.
-func set_hidden_tint(on: bool) -> void:
+## Zetsu: o mundo escurece um pouco junto com a chama da Vela. Gyo: escurece e
+## esfria, para o que é feito de aura saltar aos olhos.
+func update_tint(zetsu: bool, gyo: bool) -> void:
 	if _tint_tween and _tint_tween.is_valid():
 		_tint_tween.kill()
 	var target: Color = palette["ambient"]
-	if on:
+	if zetsu:
 		target = target.darkened(0.28).lerp(Color(0.32, 0.36, 0.5), 0.2)
+	elif gyo:
+		target = target.darkened(0.32).lerp(Color(0.36, 0.33, 0.52), 0.3)
 	_tint_tween = create_tween()
 	_tint_tween.tween_property(ambient, "color", target, 0.35)
 

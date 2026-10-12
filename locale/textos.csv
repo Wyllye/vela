@@ -2,7 +2,7 @@ keys,pt_BR
 TITLE_GAME,VELA
 TITLE_SUB,Vesperal
 TITLE_PRESS,Pressione qualquer botão
-TITLE_BUILD,Etapa 2 · Combate e Nen
+TITLE_BUILD,Etapa 3 · Técnicas avançadas
 AREA_POCO,Poço do Despertar
 AREA_POCO_SUB,Vesperal
 INSC_POCO_1,"Ninguém morre da queda no Poço.
@@ -18,14 +18,14 @@ Ainda acendem."
 INSC_LIMIAR_1,"Acima fica o Claustro das Velas.
 Alguém ainda acende as velas lá em cima.
 Ninguém sabe quem."
-GLYPH_POCO_1,"Ela jurou que nenhuma chama se apagaria.
+AURA_POCO_1,"Ela jurou que nenhuma chama se apagaria.
 E nenhuma se apagou. Todas pararam."
-GLYPH_LANTERNAS_1,"Paramos de sentir medo todos no mesmo instante.
+AURA_LANTERNAS_1,"Paramos de sentir medo todos no mesmo instante.
 Foi assim que soubemos."
 REST_PROMPT,Descansar
-END_TITLE,Fim da Etapa 2
-END_SUB,Combate e fundamentos do Nen
-END_NEXT,"A seguir: Gyo, En e as técnicas avançadas"
+END_TITLE,Fim da Etapa 3
+END_SUB,Técnicas avançadas e a narrativa oculta
+END_NEXT,A seguir: a Câmara da Água e os seis Hatsus
 END_CONTINUE,Pressione um botão para continuar explorando
 PAUSE_TITLE,Pausa
 PAUSE_RESUME,Esc / Start  —  voltar ao jogo
@@ -66,7 +66,7 @@ SKILL_WALL,Aderência
 SKILL_AIR_JUMP,Sopro
 MEDITATE_PROMPT,Meditar
 CTRL_ZETSU,Zetsu (segurar) · apaga a chama
-CTRL_ZETSU_KEYS,Shift  ·  LB / LT
+CTRL_ZETSU_KEYS,Shift  ·  LB
 CTRL_REN,Ren (segurar) · explode a aura
 CTRL_REN_KEYS,V  ou  L  ·  Y
 LESSON_CONTINUE,Pressione um botão para continuar
@@ -79,7 +79,7 @@ LESSON_ZETSU_NAME,Zetsu
 LESSON_ZETSU_SUB,Ocultar
 LESSON_ZETSU_DESC,"Feche os nós de aura: a chama apaga e os Ecos deixam de te ver.
 Véus de aura se abrem e a aura volta depressa — mas cada golpe fere em dobro."
-LESSON_ZETSU_HINT,Segure  Shift  ·  LB / LT
+LESSON_ZETSU_HINT,Segure  Shift  ·  LB
 LESSON_REN_NAME,Ren
 LESSON_REN_SUB,Intensificar
 LESSON_REN_DESC,"Abra todos os nós de uma vez: a aura explode, racha cascas de aura e afasta os Ecos.
@@ -98,5 +98,94 @@ INSC_VOTOS_3,"Ele jurou que nunca mais tocaria o chão do Poço.
 Cumpre o voto a cada salto."
 INSC_VOTOS_4,"Os votos mais duros eram ditos aqui, onde ninguém ouvia.
 A Abadessa disse o dela sozinha."
-GLYPH_VOTOS_1,"Jurei proteger Vesperal até a última chama.
+AURA_VOTOS_1,"Jurei proteger Vesperal até a última chama.
 Não disse de quem seriam as chamas."
+AREA_NOVICIADO,Noviciado
+AREA_NOVICIADO_SUB,Vesperal
+CTRL_GYO,Gyo (segurar) · olhos de aura
+CTRL_GYO_KEYS,F  ou  Q  ·  LT
+PAUSE_TECHNIQUES,Técnicas
+CTRL_SHU,Shu — golpe com o Ren aceso: alcança mais e parte pedra
+CTRL_KO,Ko — segure o golpe e solte
+CTRL_KEN,Ken — abra o Ren no instante do golpe
+CTRL_EN,En — Gyo + ↓ no chão
+PAUSE_AURA,Escritas em aura lidas: %d de %d
+LESSON_GYO_NAME,Gyo
+LESSON_GYO_SUB,Olhos de aura
+LESSON_GYO_DESC,"Leve a aura aos olhos: o que foi escrito em aura aparece, e o que se escondeu com In se revela.
+Enquanto os olhos ardem, a chama não se refaz."
+LESSON_GYO_HINT,Segure  F  ou  Q  ·  LT
+LESSON_SHU_NAME,Shu
+LESSON_SHU_SUB,Aura no cajado
+LESSON_SHU_DESC,"Com o Ren aceso, a aura corre pelo cajado:
+o golpe alcança mais longe e a pedra solta cede."
+LESSON_SHU_HINT,Segure  V  ou  L  ·  Y  e golpeie
+LESSON_KEN_NAME,Ken
+LESSON_KEN_SUB,Defesa total
+LESSON_KEN_DESC,"O Ren no corpo inteiro, por um instante.
+Abra o Ren quando o golpe chegar: nada passa, e quem bateu cambaleia."
+LESSON_KEN_HINT,V  ou  L  ·  Y  no instante do golpe
+LESSON_KO_NAME,Ko
+LESSON_KO_SUB,Um só ponto
+LESSON_KO_DESC,"Toda a aura da chama na ponta do cajado. Segure o golpe até juntar e solte: nada resiste.
+Mas, enquanto concentra, o resto do corpo fica sem defesa."
+LESSON_KO_HINT,Segure  X  ou  J  ·  X
+LESSON_EN_NAME,En
+LESSON_EN_SUB,Círculo
+LESSON_EN_DESC,"Espalhe a aura pelo chão até onde ela alcança: a sala inteira se desenha
+e nada escondido escapa. Quem estiver perto também sente você."
+LESSON_EN_HINT,Gyo  +  ↓  no chão
+INSC_LEITURA_1,"Os noviços aprendiam a ler duas vezes:
+à luz da vela, e com os olhos da aura."
+INSC_LEITURA_2,"O chão desta sala nunca foi de pedra.
+Para quem não lê, é um fosso."
+INSC_LEITURA_3,"O irmão Escriba escondeu agulhas no corredor.
+Quem lê devagar, passa."
+INSC_ARQUIVO_1,"Aqui se guardava tudo o que Vesperal sabia.
+Alguém achou que era demais."
+INSC_ARQUIVO_2,"Ele jurou que ninguém leria o que foi guardado aqui.
+Ergueu o muro com as próprias mãos — e ainda carrega a última pedra."
+INSC_ARQUIVO_3,A aura no cajado não pede licença à pedra.
+INSC_EXERC_1,"Os mestres batiam sem aviso.
+Quem abria o Ren na hora certa não sentia nada."
+INSC_EXERC_2,"Todo noviço apanhou neste tablado.
+Todo noviço voltou no dia seguinte."
+INSC_CAMP_1,"O sino de Vesperal não se toca com as mãos.
+Toca-se com tudo o que se tem, num ponto só."
+INSC_CAMP_2,"Ele marcava as horas do mosteiro.
+Na última, tocou uma vez só."
+INSC_CAPELA_1,"Aqui a Abadessa disse o voto.
+Ninguém mais estava na sala. Todos sentiram."
+INSC_CAPELA_2,"O pintor trabalhou três dias sem dormir.
+No quarto dia, todas as chamas pararam."
+AURA_DORM_1,"O Vigia fechou a porta por dentro naquela noite.
+Os noviços dormiram durante tudo."
+AURA_LIMIAR_1,"Quem acende as velas lá em cima?
+Eu sei. Não vou escrever o nome."
+AURA_LEITURA_1,"Lição um: o que se escreve com aura só se lê com aura.
+Se você lê isto, seus olhos já não são só de cera."
+AURA_LEITURA_2,"Tenho medo do voto que a Abadessa prepara.
+Ela fala em proteger. Nunca diz do quê."
+AURA_LEITURA_3,"A Mestra do Arco nos ensinou a esconder com In.
+Disse que um dia todos teríamos algo a esconder."
+AURA_LEITURA_4,"Contei as velas do Claustro esta manhã.
+Tinha uma a mais."
+AURA_ARQUIVO_1,"Lição dois: a aura vai aonde a mente manda.
+Pense no cajado como parte do braço."
+AURA_ARQUIVO_2,"As contas da Abadessa fechavam:
+uma chama por noviço, todas de uma vez.
+Emparedei as contas. Não consegui emparedar o que eu sabia."
+AURA_EXERC_1,"Lição três: defender é atacar a tempo.
+O Ken dura um piscar. Não pisque."
+AURA_EXERC_2,"Treinávamos para uma guerra que ninguém viu chegar.
+Só ela viu."
+AURA_CAMP_1,"Lição quatro: quem põe tudo num ponto
+fica nu em todo o resto."
+AURA_CAMP_2,"Na noite do Juramento o sino tocou uma vez.
+Esperamos a segunda batida. Ela não veio."
+AURA_CAPELA_1,"Pintei o que ela pediu.
+O resto, escondi em aura."
+AURA_CAPELA_2,"Eu vi a sombra. Juro que vi.
+Se ela não era real, que o selo me prenda junto com eles."
+AURA_CAPELA_3,"Lição cinco: a aura que se espalha
+volta trazendo tudo o que tocou."

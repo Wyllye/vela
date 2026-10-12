@@ -22,9 +22,15 @@ var rest_label: Label
 var end_root: Control
 var pause_root: Control
 var pause_music: Label
+var _pause_gyo: Array = []
+var _pause_techs: Array[Label] = []
+var _pause_tech_title: Label
+var _pause_aura: Label
+var _insc_orn: Ornament
 var debug_label: Label
 var end_card_visible := false
 var hud: NenHud
+var room_map: RoomMap
 var lesson_root: Control
 var lesson_visible := false
 var _lesson_name: Label
@@ -192,11 +198,11 @@ func _build_inscription() -> void:
 	insc_root.modulate.a = 0.0
 	add_child(insc_root)
 	insc_root.add_child(_soft_backdrop(Rect2(140, 40, 1000, 250), 0.65))
-	var orn := Ornament.new()
-	orn.position = Vector2(VIEW.x * 0.5, 92)
-	orn.width = 220.0
-	orn.small = true
-	insc_root.add_child(orn)
+	_insc_orn = Ornament.new()
+	_insc_orn.position = Vector2(VIEW.x * 0.5, 92)
+	_insc_orn.width = 220.0
+	_insc_orn.small = true
+	insc_root.add_child(_insc_orn)
 	insc_label = _label("", font_italic, 31, INK)
 	insc_label.label_settings.line_spacing = 2.0
 	insc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -219,6 +225,9 @@ func _build_hud() -> void:
 	hud.position = Vector2(46, 34)
 	hud.modulate.a = 0.0
 	add_child(hud)
+	room_map = RoomMap.new()
+	room_map.font = _font("res://assets/fonts/Cinzel-Variable.ttf", 600)
+	add_child(room_map)
 
 
 func _build_lesson() -> void:
@@ -288,14 +297,14 @@ func _build_pause() -> void:
 	pause_root.visible = false
 	add_child(pause_root)
 	var dim := ColorRect.new()
-	dim.color = Color(0.0, 0.01, 0.02, 0.72)
+	dim.color = Color(0.0, 0.01, 0.02, 0.74)
 	_full_rect(dim)
 	pause_root.add_child(dim)
-	var t := _label(tr("PAUSE_TITLE"), font_title, 46, INK, 8)
-	_place(t, 120, 70)
+	var t := _label(tr("PAUSE_TITLE"), font_title, 44, INK, 8)
+	_place(t, 74, 64)
 	pause_root.add_child(t)
 	var orn := Ornament.new()
-	orn.position = Vector2(VIEW.x * 0.5, 166)
+	orn.position = Vector2(VIEW.x * 0.5, 114)
 	orn.width = 300.0
 	pause_root.add_child(orn)
 	var rows := [
@@ -305,28 +314,49 @@ func _build_pause() -> void:
 		["CTRL_DASH", "CTRL_DASH_KEYS"],
 		["CTRL_ZETSU", "CTRL_ZETSU_KEYS"],
 		["CTRL_REN", "CTRL_REN_KEYS"],
+		["CTRL_GYO", "CTRL_GYO_KEYS"],
 	]
-	var y := 206.0
+	var y := 150.0
 	for row in rows:
-		var a := _label(tr(row[0]), font_body, 25, INK)
+		var a := _label(tr(row[0]), font_body, 23, INK)
 		a.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		a.position = Vector2(0, y - 18)
-		a.size = Vector2(VIEW.x * 0.5 - 24, 36)
+		a.position = Vector2(0, y - 17)
+		a.size = Vector2(VIEW.x * 0.5 - 22, 34)
+		a.set_meta("lesson", "gyo" if row[0] == "CTRL_GYO" else "")
 		pause_root.add_child(a)
-		var b := _label(tr(row[1]), font_body, 25, MUTED)
+		var b := _label(tr(row[1]), font_body, 23, MUTED)
 		b.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		b.position = Vector2(VIEW.x * 0.5 + 24, y - 18)
-		b.size = Vector2(VIEW.x * 0.5 - 24, 36)
+		b.position = Vector2(VIEW.x * 0.5 + 22, y - 17)
+		b.size = Vector2(VIEW.x * 0.5 - 22, 34)
+		b.set_meta("lesson", "gyo" if row[0] == "CTRL_GYO" else "")
 		pause_root.add_child(b)
-		y += 44.0
-	pause_music = _label("", font_italic, 24, MUTED)
-	_place(pause_music, 500, 36)
+		if row[0] == "CTRL_GYO":
+			_pause_gyo = [a, b]
+		y += 34.0
+	# técnicas aprendidas (só as que a Vela já tem)
+	_pause_tech_title = _label(tr("PAUSE_TECHNIQUES"), font_title, 17, Color(1.0, 0.84, 0.58, 0.9), 6)
+	_place(_pause_tech_title, 410, 30)
+	pause_root.add_child(_pause_tech_title)
+	var techs := [["shu", "CTRL_SHU"], ["ko", "CTRL_KO"], ["ken", "CTRL_KEN"], ["en", "CTRL_EN"]]
+	for i in techs.size():
+		var l := _label(tr(techs[i][1]), font_body, 21, INK)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.position = Vector2(140.0 + (i % 2) * 500.0, 436.0 + (i / 2) * 32.0)
+		l.size = Vector2(500, 30)
+		l.set_meta("lesson", techs[i][0])
+		pause_root.add_child(l)
+		_pause_techs.append(l)
+	_pause_aura = _label("", font_italic, 22, Color(AuraGlyph.MONK, 0.95))
+	_place(_pause_aura, 524, 32)
+	pause_root.add_child(_pause_aura)
+	pause_music = _label("", font_italic, 21, MUTED)
+	_place(pause_music, 572, 30)
 	pause_root.add_child(pause_music)
-	var dbg := _label(tr("PAUSE_DEBUG"), font_italic, 24, MUTED)
-	_place(dbg, 538, 36)
+	var dbg := _label(tr("PAUSE_DEBUG"), font_italic, 21, MUTED)
+	_place(dbg, 602, 30)
 	pause_root.add_child(dbg)
-	var back := _label(tr("PAUSE_RESUME"), font_italic, 26, INK)
-	_place(back, 610, 36)
+	var back := _label(tr("PAUSE_RESUME"), font_italic, 25, INK)
+	_place(back, 660, 34)
 	pause_root.add_child(back)
 	refresh_pause()
 
@@ -378,8 +408,14 @@ func show_area_title(area: String, sub: String) -> void:
 	_area_tween.tween_property(area_root, "modulate:a", 0.0, 1.6)
 
 
-func show_inscription(text: String) -> void:
+## Inscrição na tela. Com `tint`, é escrita em aura: a cor de quem escreveu.
+func show_inscription(text: String, tint := Color(0, 0, 0, 0)) -> void:
 	insc_label.text = text
+	var aura := tint.a > 0.0
+	insc_label.label_settings.font_color = tint.lerp(INK, 0.25) if aura else INK
+	insc_label.label_settings.shadow_color = Color(tint.darkened(0.6), 0.6) if aura else Color(0, 0, 0, 0.55)
+	_insc_orn.tint = tint if aura else GameUI.INK
+	_insc_orn.queue_redraw()
 	if _insc_tween and _insc_tween.is_valid():
 		_insc_tween.kill()
 	_insc_tween = create_tween()
@@ -455,14 +491,30 @@ func hide_lesson() -> void:
 	tw.tween_callback(func(): lesson_root.visible = false)
 
 
-func set_paused(on: bool) -> void:
-	refresh_pause()
+func set_paused(on: bool, room: Room = null, player: Player = null) -> void:
+	refresh_pause(player)
 	pause_root.visible = on
+	if on and room != null and Game.mapped_rooms.has(room.data.id):
+		move_child(room_map, get_child_count() - 1)
+		room_map.show_room(room, player, Vector2(-1, -1), 0.0, 0.0, true)
+	elif not on and room_map.visible and room_map.compact:
+		room_map.hide_map(0.15)
 
 
-func refresh_pause() -> void:
+func refresh_pause(player: Player = null) -> void:
 	if pause_music:
 		pause_music.text = tr("PAUSE_MUSIC") % (tr("PAUSE_ON") if Game.music_on else tr("PAUSE_OFF"))
+	if player == null:
+		return
+	for n in _pause_gyo:
+		n.visible = player.learned.get("gyo", false)
+	var any := false
+	for l in _pause_techs:
+		l.visible = player.learned.get(str(l.get_meta("lesson")), false)
+		any = any or l.visible
+	_pause_tech_title.visible = any
+	_pause_aura.visible = player.learned.get("gyo", false)
+	_pause_aura.text = tr("PAUSE_AURA") % [Game.aura_read.size(), Game.aura_total()]
 
 
 func set_debug_visible(on: bool) -> void:
@@ -478,6 +530,9 @@ func update_debug(p: Player, fps: float, room_id: String) -> void:
 		p.look, p.hurt_count,
 		p.vitality, p.vitality_max, p.aura, p.aura_cap(),
 		"vazando " if p.is_leaking() else "", "ZETSU " if p.zetsu else "", "REN " if p.ren else "", p.invuln_t]
+	var extra := "\n%s%s%s%s" % ["GYO " if p.gyo else "", "EN %.2f " % p.en_t if p.kneeling() else "",
+		"KO %.2f%s " % [p.ko_charge, " pronto" if p.ko_ready else ""] if p.ko_charging() else "", "KEN %.2f" % p.ken_t if p.ken_t > 0.0 else ""]
+	debug_label.text += extra
 
 
 # ---------------------------------------------------------------------------
@@ -486,9 +541,10 @@ func update_debug(p: Player, fps: float, room_id: String) -> void:
 class Ornament extends Node2D:
 	var width := 300.0
 	var small := false
+	var tint := GameUI.INK
 
 	func _draw() -> void:
-		var c := Color(GameUI.INK, 0.55)
+		var c := Color(tint, 0.55)
 		var hw := width * 0.5
 		var gap := 14.0 if not small else 9.0
 		draw_line(Vector2(-hw, 0), Vector2(-gap, 0), c, 1.2, true)

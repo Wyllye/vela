@@ -1,6 +1,7 @@
 extends Node
 ## Orquestra o jogo: título, salas, transições, Ecos, morte e Eco póstumo,
-## altares (descanso e lições de Nen), efeitos e UI.
+## altares (descanso e lições de Nen), escrita em aura, En e mapa da sala,
+## sino e portões, efeitos e UI.
 ##
 ## A física da Vela e dos Ecos roda aqui para garantir a ordem:
 ## controles → Vela → Ecos (e dano de contato) → salas/objetos → câmera.
@@ -8,7 +9,8 @@ extends Node
 ## Argumentos de linha de comando (depois de `--`), úteis para testes e capturas:
 ##   --room=<id>        começa direto numa sala (pula título e intro)
 ##   --at=<col>,<lin>   posição inicial na sala (célula)
-##   --nen=<nível>      técnicas já aprendidas: none, ten, zetsu ou all (padrão)
+##   --nen=<nível>      técnicas já aprendidas até essa lição: none, ten, zetsu, ren,
+##                      gyo, shu, ken, ko ou all (padrão)
 ##   --shade=<col>,<lin> põe o Eco póstumo da Vela nessa célula da sala inicial
 ##   --vit=<n>          começa com n gotas de cera
 ##   --hold=<ações>     segura ações: ren@1-3,move_right@0-2,zetsu (capturas)
@@ -26,8 +28,8 @@ enum Mode { TITLE, PLAY, TRANSITION, REST, DEATH }
 const FIRST_ROOM := "poco_fundo"
 const VIEW := Vector2(1280, 720)
 const TS := 32.0
-## Ordem das lições do Poço: um altar ensina a dele e as que ficaram para trás.
-const LESSONS := ["ten", "zetsu", "ren"]
+## Ordem das lições: um altar ensina a dele e as que ficaram para trás.
+const LESSONS := ["ten", "zetsu", "ren", "gyo", "shu", "ken", "ko", "en"]
 const AURA_COLOR := Color("ffc56a")
 
 @onready var background: CanvasLayer = $Background
@@ -41,6 +43,7 @@ const AURA_COLOR := Color("ffc56a")
 var room: Room
 var mode: Mode = Mode.TITLE
 var _active_tablet: Tablet
+var _active_glyph: AuraGlyph
 var _near_altar: Altar
 var _title_t := 0.0
 var _rest_t := 0.0
@@ -98,6 +101,7 @@ func _start_direct(room_id: String) -> void:
 	if _args.has("vit"):
 		player.vitality = clampi(int(_args["vit"]), 1, player.vitality_max)
 	Game.respawn_room = room_id
+	Game.respawn_altar = 0
 	_load_room(room_id)
 	var cell := room.spawn_cell if room.spawn_cell.x >= 0 else Vector2i(3, 3)
 	if _args.has("at"):
@@ -128,7 +132,7 @@ func _hold_input(spec: String) -> ScriptedInput:
 	return si
 
 
-## Quantas lições a Vela já tem: none, ten, zetsu ou all.
+## Quantas lições a Vela já tem: none, uma lição (ela e as anteriores) ou all.
 func _set_nen_level(level: String) -> void:
 	var n := LESSONS.size()
 	if level == "none":
@@ -162,12 +166,17 @@ func _load_room(id: String) -> void:
 	var rd := RoomData.load_room(id)
 	for cell: Vector2i in Game.opened_cells.get(id, []):
 		rd.grid.set_cell(cell.x, cell.y, LevelGrid.Tile.EMPTY)
+	if Game.flags.has("sino_" + id):
+		rd.grid.open_gates()
 	room = Room.new()
 	room_root.add_child(room)
 	room.build(rd, background)
 	room.veils.player = player
+	room.aura_layer.player = player
 	for e in room.ecos:
 		e.fx.connect(_on_eco_fx)
+	for b in room.bells:
+		b.rung.connect(_on_bell_rung.bind(b))
 	if str(Game.shade.get("room", "")) == id:
 		var sh := room.spawn_shade(Game.shade["pos"])
 		sh.fx.connect(_on_eco_fx)
@@ -175,10 +184,12 @@ func _load_room(id: String) -> void:
 	player.strikeables = room.strikeables
 	camera.setup_room(rd.grid.pixel_size())
 	_active_tablet = null
+	_active_glyph = null
 	_near_altar = null
 	ui.hide_inscription()
-	if player.zetsu:
-		room.set_hidden_tint(true)
+	if ui.room_map.visible:
+		ui.room_map.hide_map(0.1)
+	room.update_tint(player.zetsu, player.gyo)
 	if mode != Mode.TITLE and rd.music != "":
 		AudioManager.play_music(rd.music)
 	if rd.ambience != "":
@@ -276,7 +287,7 @@ func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and (mode == Mode.PLAY or mode == Mode.REST):
 		var paused := not get_tree().paused
 		get_tree().paused = paused
-		ui.set_paused(paused)
+		ui.set_paused(paused, room, player)
 		if paused:
 			AudioManager.loop_sfx("wall_slide", false)
 
@@ -332,7 +343,7 @@ func _physics_process(delta: float) -> void:
 	elif mode == Mode.REST and ui.end_card_visible and _rest_t > 2.0 and player.input.any_pressed():
 		_leave_rest()
 	if mode == Mode.PLAY:
-		_update_tablets()
+		_update_reading()
 		_update_altar()
 		if player.is_controllable() or player.state == Player.State.ENTER:
 			_check_exit()
@@ -346,6 +357,8 @@ func _physics_process(delta: float) -> void:
 func _process(_delta: float) -> void:
 	if room:
 		room.update_parallax(camera.view_top_left())
+		var post := ($Post/Vignette as ColorRect).material as ShaderMaterial
+		post.set_shader_parameter("gyo", room.aura_layer.gyo_k)
 	if Game.debug:
 		ui.update_debug(player, Engine.get_frames_per_second(), room.data.id if room else "")
 		_debug_draw.queue_redraw()
@@ -368,17 +381,31 @@ func _wait_button() -> void:
 # Estelas e altares
 # ---------------------------------------------------------------------------
 
-func _update_tablets() -> void:
-	var t := room.tablet_near(player.body.center())
-	if t == _active_tablet:
+## Estelas acendem quando a Vela chega perto; a escrita em aura só se lê com os
+## olhos de aura (Gyo) ou logo depois da onda do En.
+func _update_reading() -> void:
+	var c := player.body.center()
+	var t := room.tablet_near(c)
+	var gl: AuraGlyph = null if t else room.glyph_near(c)
+	if t == _active_tablet and gl == _active_glyph:
 		return
-	if _active_tablet:
+	if _active_tablet and _active_tablet != t:
 		_active_tablet.set_active(false)
 	_active_tablet = t
+	_active_glyph = gl
 	if t:
 		t.set_active(true)
 		ui.show_inscription(tr(t.text_key))
 		AudioManager.play_sfx("tablet", -7.0, 0.0)
+	elif gl:
+		ui.show_inscription(tr(gl.text_key), gl.color)
+		if not Game.aura_read.has(gl.text_key):
+			Game.aura_read[gl.text_key] = true
+			gl.read = true
+			AudioManager.play_sfx("aura_read", -4.0, 0.0)
+			ui.hud.flash()
+		else:
+			AudioManager.play_sfx("aura_read", -12.0, 0.0)
 	else:
 		ui.hide_inscription()
 
@@ -391,8 +418,8 @@ func _update_altar() -> void:
 		_near_altar = a
 		if a:
 			a.set_near(true)
-	var can_rest := a != null and player.grounded and player.state == Player.State.NORMAL
-	ui.show_rest_prompt(can_rest, can_rest and not _pending_lessons(room.data.altar_lesson).is_empty())
+	var can_rest := a != null and player.grounded and player.state == Player.State.NORMAL and not player.kneeling()
+	ui.show_rest_prompt(can_rest, can_rest and not _pending_lessons(a.lesson).is_empty())
 	if can_rest and player.input.pressed(&"move_up"):
 		_rest(a)
 
@@ -414,13 +441,14 @@ func _rest(a: Altar) -> void:
 	player.rest()
 	player.refill()
 	Game.respawn_room = room.data.id
+	Game.respawn_altar = a.index
 	ui.show_rest_prompt(false)
 	ui.hide_inscription()
 	AudioManager.play_sfx("altar", -3.0, 0.0)
 	FX.burst(fx_root, a.position + Vector2(0, -30), {"amount": 26, "life": 2.2, "color": Color(1.0, 0.82, 0.55, 0.8),
 		"dir": Vector2.UP, "spread": 50.0, "speed_min": 15.0, "speed_max": 45.0, "gravity": Vector2(0, -12), "additive": true,
 		"rect": Vector2(50, 6), "explosive": 0.3, "damping": 4.0, "scale_min": 0.08, "scale_max": 0.16})
-	var lessons := _pending_lessons(room.data.altar_lesson)
+	var lessons := _pending_lessons(a.lesson)
 	await get_tree().create_timer(1.8 if not lessons.is_empty() else 1.2).timeout
 	for lesson: String in lessons:
 		if mode != Mode.REST:
@@ -428,7 +456,7 @@ func _rest(a: Altar) -> void:
 		await _teach(lesson)
 	if mode != Mode.REST:
 		return
-	if room.data.altar_lesson == "end":
+	if a.lesson == "end":
 		ui.show_hud(false)
 		ui.show_end_card()
 	else:
@@ -500,7 +528,7 @@ func _revive_at_altar() -> void:
 		var cell := room.spawn_cell if room.spawn_cell.x >= 0 else Vector2i(3, 3)
 		pos = Vector2(cell.x * TS + (TS - Player.SIZE.x) * 0.5, (cell.y + 1) * TS - Player.SIZE.y)
 	else:
-		var a: Vector2i = altars[0]
+		var a: Vector2i = altars[clampi(Game.respawn_altar, 0, altars.size() - 1)]
 		pos = Vector2((a.x + 0.5) * TS + 46.0 - Player.SIZE.x * 0.5, (a.y + 1) * TS - Player.SIZE.y)
 	player.revive(pos)
 	player.facing = -1
@@ -583,6 +611,8 @@ func _on_player_fx(ev: StringName, d: Dictionary) -> void:
 		&"hurt":
 			AudioManager.loop_sfx("wall_slide", false)
 			AudioManager.play_sfx("hurt", -2.0, 0.03)
+			if room:
+				room.aura_layer.flash_near(d["pos"], 90.0)
 			Game.hitstop(0.11)
 			camera.add_trauma(0.55)
 			FX.burst(fx_root, d["pos"], {"amount": 22, "life": 0.6, "color": Color("ebe0ca"), "spread": 180.0,
@@ -618,7 +648,7 @@ func _on_player_fx(ev: StringName, d: Dictionary) -> void:
 			AudioManager.play_sfx("zetsu_on" if on else "zetsu_off", -6.0 if on else -9.0, 0.02)
 			AudioManager.set_muffled(on)
 			if room:
-				room.set_hidden_tint(on)
+				room.update_tint(on, player.gyo)
 			if on:
 				FX.burst(fx_root, d["pos"] + Vector2(0, -28), {"amount": 8, "life": 0.9, "color": Color(0.7, 0.72, 0.78, 0.4), "dir": Vector2.UP,
 					"spread": 25.0, "speed_min": 10.0, "speed_max": 35.0, "gravity": Vector2(0, -25), "scale_min": 0.12, "scale_max": 0.22})
@@ -635,6 +665,51 @@ func _on_player_fx(ev: StringName, d: Dictionary) -> void:
 			_shatter_shells(d.get("broken", []))
 		&"ren_end":
 			AudioManager.loop_sfx("ren_hum", false)
+		&"gyo":
+			var on_g := bool(d.get("on", false))
+			AudioManager.play_sfx("gyo_on" if on_g else "gyo_off", -8.0 if on_g else -11.0, 0.02)
+			if room:
+				room.update_tint(player.zetsu, on_g)
+			if not on_g and bool(d.get("empty", false)):
+				_on_player_fx(&"fizzle", d)
+		&"en_kneel":
+			AudioManager.play_sfx("en_kneel", -8.0, 0.03)
+			_dust(d["pos"], 5, 40.0)
+		&"en":
+			_spread_en(d["pos"], float(d.get("speed", 1100.0)))
+		&"ko_charge":
+			AudioManager.loop_sfx("ko_charge", true, -9.0)
+		&"ko_ready":
+			AudioManager.play_sfx("ko_ready", -4.0, 0.0)
+			camera.add_trauma(0.08)
+			FX.ring(fx_root, d["pos"] + Vector2(player.facing * 20.0, -8.0), Color(aura, 0.9), 22.0, 0.25)
+		&"ko_cancel":
+			AudioManager.loop_sfx("ko_charge", false)
+		&"ko":
+			AudioManager.loop_sfx("ko_charge", false)
+			AudioManager.play_sfx("ko_release", 0.0, 0.0)
+			Game.hitstop(0.09)
+			camera.add_trauma(0.55)
+			var kp: Vector2 = d["pos"] + Vector2(float(d["dir"]) * 56.0, -6.0)
+			FX.ring(fx_root, kp, Color(1.0, 0.95, 0.85, 0.95), 70.0, 0.3)
+			FX.ring(fx_root, kp, Color(aura, 0.8), 120.0, 0.45)
+			FX.burst(fx_root, kp, {"amount": 34, "life": 0.55, "color": Color(aura, 0.95), "dir": Vector2(float(d["dir"]), 0), "spread": 40.0,
+				"speed_min": 220.0, "speed_max": 520.0, "gravity": Vector2.ZERO, "additive": true, "damping": 520.0})
+		&"ken_parry":
+			AudioManager.play_sfx("ken_parry", -1.0, 0.03)
+			Game.hitstop(0.12)
+			camera.add_trauma(0.35)
+			FX.ring(fx_root, d["pos"], Color(1.0, 0.97, 0.9, 0.95), 46.0, 0.25)
+			FX.ring(fx_root, player.body.center(), Color(aura, 0.8), 64.0, 0.35)
+			FX.burst(fx_root, d["pos"], {"amount": 18, "life": 0.45, "color": Color(1.0, 0.92, 0.7, 1.0), "dir": Vector2(float(d.get("dir", 1.0)), -0.3),
+				"spread": 70.0, "speed_min": 160.0, "speed_max": 380.0, "gravity": Vector2(0, 500), "additive": true, "scale_min": 0.05, "scale_max": 0.11})
+		&"stone_ting":
+			AudioManager.play_sfx("stone_ting", -5.0, 0.06)
+			Game.hitstop(0.02)
+			FX.burst(fx_root, d["pos"], {"amount": 8, "life": 0.35, "color": Color(0.85, 0.8, 0.7, 0.9), "spread": 180.0,
+				"speed_min": 60.0, "speed_max": 170.0, "gravity": Vector2(0, 700), "scale_min": 0.05, "scale_max": 0.1})
+		&"stone_break":
+			_break_stones(d.get("cells", []))
 		&"respawn_start":
 			ui.fade_to(1.0, 0.24)
 		&"respawn_teleport":
@@ -658,6 +733,60 @@ func _on_player_fx(ev: StringName, d: Dictionary) -> void:
 			if room.data.area_title != "":
 				ui.show_area_title(tr(room.data.area_title), tr(room.data.area_title + "_SUB"))
 			AudioManager.play_music(room.data.music, 5.0)
+
+
+## Shu ou Ko derrubou um muro de pedra solta: pedras rolando e poeira.
+func _break_stones(cells: Array) -> void:
+	if cells.is_empty() or room == null:
+		return
+	Game.add_opened(room.data.id, cells)
+	room.stones.refresh()
+	AudioManager.play_sfx("stone_break", -1.0, 0.04)
+	Game.hitstop(0.05)
+	camera.add_trauma(0.4)
+	for k: Vector2i in cells:
+		var c := (Vector2(k) + Vector2(0.5, 0.5)) * TS
+		FX.burst(fx_root, c, {"amount": 7, "life": 1.1, "color": Color("7d7366"), "spread": 180.0,
+			"speed_min": 60.0, "speed_max": 240.0, "gravity": Vector2(0, 1100), "explosive": 1.0, "scale_min": 0.12, "scale_max": 0.26})
+		FX.burst(fx_root, c, {"amount": 5, "life": 1.4, "color": Color(0.72, 0.7, 0.66, 0.4), "dir": Vector2.UP, "spread": 120.0,
+			"speed_min": 10.0, "speed_max": 50.0, "gravity": Vector2(0, -10), "damping": 20.0, "explosive": 0.8, "scale_min": 0.25, "scale_max": 0.45})
+
+
+## En: a onda sai da Vela, revela o que o In escondia e desenha o mapa da sala.
+func _spread_en(pos: Vector2, speed: float) -> void:
+	AudioManager.play_sfx("en_pulse", -2.0, 0.0)
+	camera.add_trauma(0.12)
+	room.aura_layer.add_pulse(pos, speed)
+	Game.mapped_rooms[room.data.id] = true
+	ui.room_map.show_room(room, player, pos, speed, 5.5)
+	ui.hud.flash()
+
+
+## O sino: um gemido com o golpe comum; com o Ko ele canta e os portões sobem.
+func _on_bell_rung(strong: bool, bell: Bell) -> void:
+	var bp := bell.position + bell.body_pos()
+	if not strong:
+		_sfx_at("bell_soft", bp, -6.0)
+		return
+	AudioManager.play_sfx("bell_toll", 0.0, 0.0)
+	Game.hitstop(0.06)
+	camera.add_trauma(0.5)
+	FX.ring(fx_root, bp, Color(1.0, 0.86, 0.6, 0.8), 180.0, 0.9)
+	FX.ring(fx_root, bp, Color(1.0, 0.86, 0.6, 0.5), 320.0, 1.4)
+	# o som atordoa os Ecos perto
+	for e in room.ecos:
+		if is_instance_valid(e) and e.alive() and e.body.center().distance_to(bp) < 420.0:
+			e.stun_t = maxf(e.stun_t, 1.2)
+			e.flash = 0.7
+	var key := "sino_" + room.data.id
+	if Game.flags.has(key):
+		return
+	Game.flags[key] = true
+	var cells := room.open_gates(true)
+	if not cells.is_empty():
+		await get_tree().create_timer(0.5).timeout
+		AudioManager.play_sfx("gate_open", -2.0, 0.0)
+		camera.add_trauma(0.18)
 
 
 ## A explosão do Ren rachou cascas de aura: estilhaços e o caminho fica aberto.
@@ -733,6 +862,31 @@ func _on_eco_fx(ev: StringName, d: Dictionary) -> void:
 			_sfx_at("mariposa_windup", pos, -6.0)
 		&"shade_lunge":
 			_sfx_at("dash", pos, -7.0)
+		&"penitente_raise":
+			_sfx_at("penitente_raise", pos, -4.0)
+		&"penitente_slam":
+			_sfx_at("penitente_slam", pos, -1.0)
+			var near := clampf(1.0 - pos.distance_to(player.body.center()) / 700.0, 0.0, 1.0)
+			camera.add_trauma(0.15 + 0.35 * near)
+			_dust(pos, 16, 170.0)
+		&"penitente_block":
+			_sfx_at("stone_ting", pos, -3.0)
+			Game.hitstop(0.04)
+			FX.burst(fx_root, pos, {"amount": 10, "life": 0.35, "color": Color(1.0, 0.95, 0.85, 0.95), "spread": 160.0,
+				"dir": Vector2(-float(d.get("dir", 1)), -0.3), "speed_min": 90.0, "speed_max": 220.0, "gravity": Vector2(0, 600),
+				"additive": true, "scale_min": 0.05, "scale_max": 0.1})
+		&"slab_crack":
+			_sfx_at("stone_crack", pos, -2.0)
+			Game.hitstop(0.06)
+			camera.add_trauma(0.18)
+			FX.burst(fx_root, pos, {"amount": 10, "life": 0.8, "color": Color("7d7366"), "spread": 180.0,
+				"speed_min": 60.0, "speed_max": 200.0, "gravity": Vector2(0, 1000), "scale_min": 0.08, "scale_max": 0.16})
+		&"slab_break":
+			_sfx_at("stone_break", pos, 0.0)
+			Game.hitstop(0.08)
+			camera.add_trauma(0.4)
+			FX.burst(fx_root, pos, {"amount": 26, "life": 1.1, "color": Color("7d7366"), "spread": 180.0,
+				"speed_min": 80.0, "speed_max": 300.0, "gravity": Vector2(0, 1100), "explosive": 1.0, "scale_min": 0.1, "scale_max": 0.24})
 
 
 ## Toca um efeito de algo no mundo, mais baixo quanto mais longe da câmera.
