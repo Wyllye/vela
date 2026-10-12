@@ -1,7 +1,7 @@
 # VELA — Documento de Design (GDD)
 
-> Versão 0.1 · outubro de 2026 · nome provisório
-> Etapa atual: **1 — Movimentação** (ver [ROADMAP](ROADMAP.md))
+> Versão 0.2 · outubro de 2026 · nome provisório
+> Etapa atual: **2 — Combate e fundamentos do Nen** (ver [ROADMAP](ROADMAP.md))
 
 ---
 
@@ -51,7 +51,7 @@ Vesperal é um mosteiro vertical construído para dentro de uma montanha oca. A 
 
 | Área | Papel | Etapa |
 |---|---|---|
-| **Poço do Despertar** | Tutorial de movimento; onde a Vela cai | 1 ✅ |
+| **Poço do Despertar** | Tutorial de movimento e dos fundamentos do Nen; onde a Vela cai | 1–2 ✅ |
 | **Claustro das Velas** | Hub; alguém ainda acende as velas aqui — ninguém sabe quem | 5 |
 | **Câmara da Água** | Adivinhação da Água; revela o tipo de Nen | 4 |
 | **Ala do Punho** | Forjas e pedras partidas | 4–7 |
@@ -105,16 +105,18 @@ Regras: nenhum diálogo, nenhuma cutscene com texto, textos de no máximo três 
 ## 6. O Nen em VELA
 
 ### 6.1 Aura e Vitalidade
-- **Aura (a chama):** regenera rápido no chão e parado; dash, pulo aéreo e Hatsu gastam aura.
-- **Vitalidade (gotas de cera):** a vida, como as máscaras de Hollow Knight.
-- **Derreter (inspirado na tinta de Constance):** dá para continuar usando habilidades com a aura zerada, mas cada uso consome Vitalidade.
+- **Aura (a chama):** regenera rápido no chão e parado; dash, pulo aéreo e Hatsu gastam aura. Acertar Ecos e quicar devolvem um pouco.
+- **Vitalidade (gotas de cera):** a vida, como as máscaras de Hollow Knight. Começa com 5.
+- **Derreter (inspirado na tinta de Constance):** dá para continuar usando habilidades com a aura zerada, mas cada uso consome Vitalidade (nunca a última gota).
+- **HUD:** a chama da Vela é o medidor; no canto, uma vela pequena repete a chama e mostra as gotas.
+- Números em `resources/nen_tuning.tres` (Etapa 2: dash 18, Sopro 14, regeneração 70/34/6 por segundo).
 
 ### 6.2 Os quatro princípios
 | Técnica | No jogo | Etapa |
 |---|---|---|
-| **Ten** (envolver) | No começo a aura **vaza** sem parar; aprender Ten é a primeira lição. Depois vira o estado padrão e reduz dano | 2 |
-| **Zetsu** (ocultar) | Segurar: a chama apaga, Ecos não te percebem e você atravessa véus de aura, mas recebe dano dobrado | 2 |
-| **Ren** (intensificar) | Segurar: aura explode, mais dano e velocidade, gasto alto; quebra cascas de aura | 2 |
+| **Ten** (envolver) | No começo a aura **vaza** sem parar (a chama segura só 45% e os golpes ferem em dobro); aprender Ten é a primeira lição, no altar do Fundo do Poço. Depois vira o estado padrão | 2 ✅ |
+| **Zetsu** (ocultar) | Segurar: a chama apaga, Ecos não te percebem e você atravessa véus de aura; a aura volta rápido; sem dash, Sopro ou Ren; recebe dano dobrado. Golpe num Eco desatento fere mais | 2 ✅ |
+| **Ren** (intensificar) | Apertar: a aura explode, racha cascas de aura e afasta Ecos. Segurar: golpe em dobro, mais velocidade, gasto alto | 2 ✅ |
 | **Hatsu** (liberar) | A habilidade especial da categoria escolhida (6.4) | 4 |
 
 ### 6.3 Técnicas avançadas (chaves de exploração)
@@ -148,7 +150,7 @@ O equivalente aos amuletos de Hollow Knight. **Votos** são equipados em **Pavio
 Exemplos: *Voto do Silêncio* (sem Ren; Ko custa metade) · *Voto do Chão* (sem pulo aéreo; dash no chão 50% mais longo) · *Voto da Chama Curta* (−2 de Vitalidade máxima; +40% de dano).
 
 ### 6.6 Morte e Nen póstumo
-Ao apagar, a Vela deixa um **Eco** de si mesma onde caiu, guardando parte da aura máxima e as **Contas** (moeda: contas de oração). Derrote o próprio Eco para recuperar tudo. Quanto mais você demora, mais forte ele fica — o rancor alimenta o Nen póstumo.
+Ao apagar, a Vela deixa um **Eco** de si mesma onde caiu, guardando parte da aura máxima (34%) e as **Contas** (moeda: contas de oração, Etapa 6). Ela renasce no último altar em que descansou. Derrote o próprio Eco para recuperar tudo; apagar de novo antes disso troca o Eco de lugar (a perda não acumula). Quanto mais você demora, mais forte ele fica — o rancor alimenta o Nen póstumo (Etapa 6).
 
 ---
 
@@ -172,8 +174,17 @@ Na Etapa 1 todas as habilidades de movimento vêm liberadas para testar a sensa�
 ---
 
 ## 8. Combate (Etapa 2 em diante)
-- Golpe curto com hit-stop, recuo e pogo em inimigos e espinhos.
-- **Ecos** (inimigos) repetem o último voto que fizeram em vida: o comportamento de cada um é um pedaço da história.
+- Golpe curto com hit-stop, recuo e pogo em inimigos e espinhos. Golpe recebido: empurrão e invencibilidade curta.
+- **Ecos** (inimigos) repetem o último voto que fizeram em vida: o comportamento de cada um é um pedaço da história. Enxergam a chama da Vela — no Zetsu, ela some para eles.
+
+| Eco | Voto | Comportamento | Etapa |
+|---|---|---|---|
+| **Vigia** | guardar o sono dos noviços | patrulha com a lanterna, só vê para a frente, investe contra a chama | 2 ✅ |
+| **Saltador** | nunca mais tocar o chão | pula sem parar e salta em cima da chama; dá para quicar nele | 2 ✅ |
+| **Mariposa** | velar toda chama acesa | ronda a chama e mergulha nela | 2 ✅ |
+| **Eco póstumo** | o da própria Vela | guarda a aura perdida na morte | 2 ✅ |
+
+- **Véus de aura** (só passam no Zetsu) e **cascas de aura** (só o Ren racha) são as primeiras chaves de Nen do mapa.
 - Chefes: os seis Mestres e a Abadessa.
 
 ---

@@ -6,8 +6,8 @@ Cada etapa só termina quando: o jogo roda do zero num clone limpo, os testes pa
 |---|---|---|
 | 0 | Fundação: projeto Godot, GDD, roadmap, CI | ✅ concluída |
 | 1 | Movimentação + primeira área (Poço do Despertar) | ✅ concluída |
-| 2 | Combate e fundamentos do Nen (Ten, Zetsu, Ren) | ⏭️ próxima |
-| 3 | Técnicas avançadas (Gyo, En, Shu, Ko, Ken) e a narrativa oculta | ⬜ |
+| 2 | Combate e fundamentos do Nen (Ten, Zetsu, Ren) | ✅ concluída |
+| 3 | Técnicas avançadas (Gyo, En, Shu, Ko, Ken) e a narrativa oculta | ⏭️ próxima |
 | 4 | Câmara da Água, hexágono e os seis Hatsus | ⬜ |
 | 5 | Mundo interligado: Claustro das Velas, mapa, altares e save | ⬜ |
 | 6 | Restrições e Juramentos, Contas e Nen póstumo | ⬜ |
@@ -41,15 +41,17 @@ Cada etapa só termina quando: o jogo roda do zero num clone limpo, os testes pa
 
 **Pronto quando:** dá para atravessar as 4 salas só com movimento, sem travar em quina, e a sensação aguenta comparação lado a lado com as referências.
 
-## Etapa 2 — Combate e fundamentos do Nen
-- [ ] Vitalidade (gotas de cera) e Aura (chama) no HUD diegético
-- [ ] Aura que **vaza** no início; aprender **Ten** num altar do Poço
-- [ ] **Zetsu** (furtividade, dano dobrado) e **Ren** (explosão de aura)
-- [ ] Custo de aura no dash e no pulo aéreo; "derreter" quando zera
-- [ ] Hit-stop, recuo, invencibilidade curta, knockback
-- [ ] 3 Ecos básicos (patrulheiro, saltador, voador) com comportamentos ligados a votos
-- [ ] Morte, Eco póstumo e recuperação
-- [ ] 2 salas novas de combate no Poço
+## Etapa 2 — Combate e fundamentos do Nen ✅
+- [x] Vitalidade (gotas de cera) e Aura (chama) no HUD diegético
+- [x] Aura que **vaza** no início; aprender **Ten** num altar do Poço
+- [x] **Zetsu** (furtividade, dano dobrado) e **Ren** (explosão de aura)
+- [x] Custo de aura no dash e no pulo aéreo; "derreter" quando zera
+- [x] Hit-stop, recuo, invencibilidade curta, knockback
+- [x] 3 Ecos básicos (Vigia, Saltador, Mariposa) com comportamentos ligados a votos
+- [x] Morte, Eco póstumo e recuperação
+- [x] 2 salas novas de combate no Poço (Dormitório dos Noviços e Câmara dos Votos)
+- [x] Véus de aura (abrem no Zetsu) e cascas de aura (o Ren racha)
+- [x] Altares de lição (Ten, Zetsu, Ren) e renascer no último altar
 
 **Pronto quando:** dá para morrer, recuperar o Eco e vencer as salas usando Ten/Zetsu/Ren de forma diferente.
 
