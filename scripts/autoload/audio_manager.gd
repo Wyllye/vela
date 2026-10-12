@@ -18,6 +18,9 @@ var _pool_i := 0
 var _loops: Dictionary = {}
 var _cache: Dictionary = {}
 var _tweens: Dictionary = {}
+## Passa-baixa na música e na ambiência (o mundo abafa durante o Zetsu).
+var _lowpass: Array[AudioEffectLowPassFilter] = []
+var _muffle_tween: Tween
 
 
 func _ready() -> void:
@@ -73,6 +76,14 @@ func _setup_buses() -> void:
 		rev.wet = 0.16
 		rev.dry = 1.0
 		AudioServer.add_bus_effect(sfx, rev)
+	for bus_name in ["Music", "Ambience"]:
+		var bi := AudioServer.get_bus_index(bus_name)
+		if AudioServer.get_bus_effect_count(bi) == 0:
+			var lp := AudioEffectLowPassFilter.new()
+			lp.cutoff_hz = 20000.0
+			lp.resonance = 0.4
+			AudioServer.add_bus_effect(bi, lp)
+		_lowpass.append(AudioServer.get_bus_effect(bi, 0) as AudioEffectLowPassFilter)
 	var master := AudioServer.get_bus_index("Master")
 	if AudioServer.get_bus_effect_count(master) == 0:
 		var lim := AudioEffectHardLimiter.new()
@@ -136,6 +147,19 @@ func play_ambience(track: String, fade := 3.0) -> void:
 	_ambience.volume_db = SILENT_DB
 	_ambience.play()
 	_fade(_ambience, AMBIENCE_DB, fade, false)
+
+
+## Abafa música e ambiência (Zetsu: a Vela se fecha e o mundo fica longe).
+func set_muffled(on: bool) -> void:
+	if _muffle_tween and _muffle_tween.is_valid():
+		_muffle_tween.kill()
+	_muffle_tween = create_tween().set_parallel(true)
+	_muffle_tween.set_ignore_time_scale(true)
+	for lp in _lowpass:
+		if lp == null:
+			continue
+		var tw := _muffle_tween.tween_property(lp, "cutoff_hz", 700.0 if on else 20000.0, 0.4 if on else 0.7)
+		tw.set_trans(Tween.TRANS_EXPO).set_ease(Tween.EASE_OUT if on else Tween.EASE_IN)
 
 
 func toggle_music() -> bool:

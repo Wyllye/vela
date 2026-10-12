@@ -2,7 +2,7 @@ keys,pt_BR
 TITLE_GAME,VELA
 TITLE_SUB,Vesperal
 TITLE_PRESS,Pressione qualquer botão
-TITLE_BUILD,Etapa 1 · Movimentação
+TITLE_BUILD,Etapa 2 · Combate e Nen
 AREA_POCO,Poço do Despertar
 AREA_POCO_SUB,Vesperal
 INSC_POCO_1,"Ninguém morre da queda no Poço.
@@ -23,9 +23,9 @@ E nenhuma se apagou. Todas pararam."
 GLYPH_LANTERNAS_1,"Paramos de sentir medo todos no mesmo instante.
 Foi assim que soubemos."
 REST_PROMPT,Descansar
-END_TITLE,Fim da Etapa 1
-END_SUB,Movimentação
-END_NEXT,A seguir: combate e os fundamentos do Nen
+END_TITLE,Fim da Etapa 2
+END_SUB,Combate e fundamentos do Nen
+END_NEXT,"A seguir: Gyo, En e as técnicas avançadas"
 END_CONTINUE,Pressione um botão para continuar explorando
 PAUSE_TITLE,Pausa
 PAUSE_RESUME,Esc / Start  —  voltar ao jogo
@@ -40,7 +40,7 @@ CTRL_DASH,Passo de Ren (dash)
 CTRL_MOVE_KEYS,← → ↑ ↓  ou  WASD  ·  analógico
 CTRL_JUMP_KEYS,Z  ou  Espaço  ·  A
 CTRL_ATTACK_KEYS,X  ou  J  ·  X
-CTRL_DASH_KEYS,C  ou  K  ou  Shift  ·  RB / RT
+CTRL_DASH_KEYS,C  ou  K  ·  RB / RT
 NEN_TEN,Ten
 NEN_ZETSU,Zetsu
 NEN_REN,Ren
@@ -64,3 +64,39 @@ NEN_POSTHUMOUS,Nen póstumo
 SKILL_DASH,Passo de Ren
 SKILL_WALL,Aderência
 SKILL_AIR_JUMP,Sopro
+MEDITATE_PROMPT,Meditar
+CTRL_ZETSU,Zetsu (segurar) · apaga a chama
+CTRL_ZETSU_KEYS,Shift  ·  LB / LT
+CTRL_REN,Ren (segurar) · explode a aura
+CTRL_REN_KEYS,V  ou  L  ·  Y
+LESSON_CONTINUE,Pressione um botão para continuar
+LESSON_TEN_NAME,Ten
+LESSON_TEN_SUB,Envolver
+LESSON_TEN_DESC,"A aura para de escorrer e passa a envolver o corpo.
+A chama segura a aura inteira, e os golpes ferem menos."
+LESSON_TEN_HINT,O Ten fica sempre aceso
+LESSON_ZETSU_NAME,Zetsu
+LESSON_ZETSU_SUB,Ocultar
+LESSON_ZETSU_DESC,"Feche os nós de aura: a chama apaga e os Ecos deixam de te ver.
+Véus de aura se abrem e a aura volta depressa — mas cada golpe fere em dobro."
+LESSON_ZETSU_HINT,Segure  Shift  ·  LB / LT
+LESSON_REN_NAME,Ren
+LESSON_REN_SUB,Intensificar
+LESSON_REN_DESC,"Abra todos os nós de uma vez: a aura explode, racha cascas de aura e afasta os Ecos.
+Enquanto segurar, o cajado fere em dobro e a aura se esvai."
+LESSON_REN_HINT,Segure  V  ou  L  ·  Y
+INSC_DORM_1,"Na hora do silêncio, os noviços fechavam a chama.
+O que caça a luz não encontra quem não brilha."
+INSC_DORM_2,"O irmão Vigia jurou guardar o sono dos noviços.
+Ainda guarda. Os noviços nunca mais acordaram."
+INSC_DORM_3,O véu deixa passar só quem não arde.
+INSC_VOTOS_1,"Aqui cada noviço dizia o seu voto em voz alta.
+A aura de quem jura não se esconde: ela explode."
+INSC_VOTOS_2,"Ela jurou velar toda chama acesa no Poço.
+Ainda vela. Cuidado com a sua."
+INSC_VOTOS_3,"Ele jurou que nunca mais tocaria o chão do Poço.
+Cumpre o voto a cada salto."
+INSC_VOTOS_4,"Os votos mais duros eram ditos aqui, onde ninguém ouvia.
+A Abadessa disse o dela sozinha."
+GLYPH_VOTOS_1,"Jurei proteger Vesperal até a última chama.
+Não disse de quem seriam as chamas."

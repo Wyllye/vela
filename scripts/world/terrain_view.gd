@@ -40,7 +40,7 @@ func _distance_texture() -> ImageTexture:
 	var queue: Array[Vector2i] = []
 	for r in h:
 		for c in w:
-			if grid.is_solid(c, r):
+			if grid.is_rock(c, r):
 				dist[r * w + c] = 999
 			else:
 				dist[r * w + c] = 0
@@ -70,7 +70,7 @@ func _draw() -> void:
 	for r in grid.height:
 		var c := 0
 		while c < grid.width:
-			if not grid.is_solid(c, r):
+			if not grid.is_rock(c, r):
 				c += 1
 				continue
 			if has_convex(c, r):
@@ -78,25 +78,25 @@ func _draw() -> void:
 				c += 1
 				continue
 			var c0 := c
-			while c < grid.width and grid.is_solid(c, r) and not has_convex(c, r):
+			while c < grid.width and grid.is_rock(c, r) and not has_convex(c, r):
 				c += 1
 			draw_rect(Rect2(c0 * ts, r * ts, (c - c0) * ts, ts), Color.WHITE)
 	# filetes nos cantos côncavos (a rocha "escorre" para dentro do vão)
 	for r in grid.height:
 		for c in grid.width:
-			if grid.is_solid(c, r):
+			if grid.is_rock(c, r):
 				continue
 			var x0 := c * ts
 			var y0 := r * ts
 			var x1 := x0 + ts
 			var y1 := y0 + ts
-			if grid.is_solid(c - 1, r) and grid.is_solid(c, r - 1):
+			if grid.is_rock(c - 1, r) and grid.is_rock(c, r - 1):
 				draw_colored_polygon(_fillet(Vector2(x0, y0), Vector2(1, 1)), Color.WHITE)
-			if grid.is_solid(c + 1, r) and grid.is_solid(c, r - 1):
+			if grid.is_rock(c + 1, r) and grid.is_rock(c, r - 1):
 				draw_colored_polygon(_fillet(Vector2(x1, y0), Vector2(-1, 1)), Color.WHITE)
-			if grid.is_solid(c + 1, r) and grid.is_solid(c, r + 1):
+			if grid.is_rock(c + 1, r) and grid.is_rock(c, r + 1):
 				draw_colored_polygon(_fillet(Vector2(x1, y1), Vector2(-1, -1)), Color.WHITE)
-			if grid.is_solid(c - 1, r) and grid.is_solid(c, r + 1):
+			if grid.is_rock(c - 1, r) and grid.is_rock(c, r + 1):
 				draw_colored_polygon(_fillet(Vector2(x0, y1), Vector2(1, -1)), Color.WHITE)
 
 
@@ -105,19 +105,19 @@ func _draw() -> void:
 # ---------------------------------------------------------------------------
 
 func corner_tl(c: int, r: int) -> bool:
-	return not grid.is_solid(c - 1, r) and not grid.is_solid(c, r - 1)
+	return not grid.is_rock(c - 1, r) and not grid.is_rock(c, r - 1)
 
 
 func corner_tr(c: int, r: int) -> bool:
-	return not grid.is_solid(c + 1, r) and not grid.is_solid(c, r - 1)
+	return not grid.is_rock(c + 1, r) and not grid.is_rock(c, r - 1)
 
 
 func corner_br(c: int, r: int) -> bool:
-	return not grid.is_solid(c + 1, r) and not grid.is_solid(c, r + 1)
+	return not grid.is_rock(c + 1, r) and not grid.is_rock(c, r + 1)
 
 
 func corner_bl(c: int, r: int) -> bool:
-	return not grid.is_solid(c - 1, r) and not grid.is_solid(c, r + 1)
+	return not grid.is_rock(c - 1, r) and not grid.is_rock(c, r + 1)
 
 
 func has_convex(c: int, r: int) -> bool:

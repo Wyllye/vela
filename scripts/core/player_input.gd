@@ -5,7 +5,7 @@ extends RefCounted
 ## Os eventos chegam por `feed()` (chamado em _input), então um toque rápido
 ## entre dois ticks de física não se perde, e nada quebra durante o hit-stop.
 
-const ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"move_down", &"jump", &"attack", &"dash"]
+const ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"move_down", &"jump", &"attack", &"dash", &"zetsu", &"ren"]
 const AXIS_THRESHOLD := 0.35
 
 var enabled := true

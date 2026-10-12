@@ -10,6 +10,8 @@ var music := ""
 var ambience := ""
 var palette := "poco"
 var rng_seed := 0
+## O que o altar da sala ensina ao meditar: "ten", "zetsu", "ren", "end" (fim da etapa) ou "".
+var altar_lesson := ""
 ## "1" -> {"to": "galeria", "door": "1"}
 var doors: Dictionary = {}
 ## Chaves de tradução das estelas, na ordem de leitura do mapa.
@@ -45,6 +47,7 @@ static func from_dict(d: Dictionary) -> RoomData:
 	rd.ambience = str(d.get("ambience", ""))
 	rd.palette = str(d.get("palette", "poco"))
 	rd.rng_seed = int(d.get("seed", 0))
+	rd.altar_lesson = str(d.get("altar_lesson", ""))
 	rd.doors = d.get("doors", {})
 	for t in d.get("texts", []):
 		rd.texts.append(str(t))

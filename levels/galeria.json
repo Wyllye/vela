@@ -8,8 +8,8 @@
   "seed": 23,
   "doors": {
     "1": {
-      "to": "poco_fundo",
-      "door": "1"
+      "to": "dormitorio",
+      "door": "2"
     },
     "2": {
       "to": "lanternas",

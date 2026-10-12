@@ -9,10 +9,12 @@ extends RefCounted
 ## Legenda do mapa ASCII (ver levels/README.md):
 ##   #  sólido          =  plataforma de mão única
 ##   ^ v < >  espinhos (a ponta aponta nessa direção)
+##   ~  véu de aura (sólido, menos para quem está em Zetsu)
+##   *  casca de aura (sólida; o Ren quebra)
 ##   0-9  célula de porta (vazia; liga com outra sala)
 ##   .  vazio           qualquer outra letra = marcador de objeto (vela, estela...)
 
-enum Tile { EMPTY, SOLID, ONE_WAY, SPIKE }
+enum Tile { EMPTY, SOLID, ONE_WAY, SPIKE, VEIL, SHELL }
 enum SpikeDir { UP, DOWN, LEFT, RIGHT }
 
 const EPS := 0.001
@@ -26,6 +28,8 @@ var spike_dirs := PackedByteArray()
 var door_cells: Dictionary = {}
 ## [{"ch": String, "cell": Vector2i}]
 var markers: Array[Dictionary] = []
+## Véus abertos para quem está se movendo agora (a Vela liga durante o Zetsu).
+var veil_open := false
 
 
 static func from_rows(rows: PackedStringArray, ts: int = 32) -> LevelGrid:
@@ -58,6 +62,10 @@ static func from_rows(rows: PackedStringArray, ts: int = 32) -> LevelGrid:
 				">":
 					tile = Tile.SPIKE
 					dir = SpikeDir.RIGHT
+				"~":
+					tile = Tile.VEIL
+				"*":
+					tile = Tile.SHELL
 				".", " ":
 					pass
 				_:
@@ -84,8 +92,29 @@ func get_cell(c: int, r: int) -> int:
 	return Tile.SOLID
 
 
+## Bloqueia o movimento: rocha, casca de aura e véu fechado.
 func is_solid(c: int, r: int) -> bool:
+	return _tile_blocks(get_cell(c, r))
+
+
+## Só a rocha (o desenho do terreno e o "chão seguro" usam isto).
+func is_rock(c: int, r: int) -> bool:
 	return get_cell(c, r) == Tile.SOLID
+
+
+func _tile_blocks(t: int) -> bool:
+	return t == Tile.SOLID or t == Tile.SHELL or (t == Tile.VEIL and not veil_open)
+
+
+## Parede de verdade para deslizar e para o golpe faiscar (rocha ou casca, nunca véu).
+func is_wall(c: int, r: int) -> bool:
+	var t := get_cell(c, r)
+	return t == Tile.SOLID or t == Tile.SHELL
+
+
+func set_cell(c: int, r: int, t: int) -> void:
+	if c >= 0 and r >= 0 and c < width and r < height:
+		cells[r * width + c] = t
 
 
 func spike_dir(c: int, r: int) -> int:
@@ -144,7 +173,7 @@ func move_y(b: GridBody, dy: float, drop_through: bool = false) -> bool:
 			var top := r * ts
 			for c in range(c0, c1 + 1):
 				var t := get_cell(c, r)
-				if t == Tile.SOLID or (t == Tile.ONE_WAY and not drop_through and top >= bottom - EPS):
+				if _tile_blocks(t) or (t == Tile.ONE_WAY and not drop_through and top >= bottom - EPS):
 					b.pos.y = top - h
 					return true
 	else:
@@ -181,7 +210,7 @@ func is_grounded(b: GridBody, ignore_one_way: bool = false) -> bool:
 		return false
 	for c in range(floori(b.pos.x / ts), floori((b.pos.x + b.size.x - EPS) / ts) + 1):
 		var t := get_cell(c, r)
-		if t == Tile.SOLID or (t == Tile.ONE_WAY and not ignore_one_way):
+		if _tile_blocks(t) or (t == Tile.ONE_WAY and not ignore_one_way):
 			return true
 	return false
 
@@ -193,21 +222,22 @@ func standing_only_on_one_way(b: GridBody) -> bool:
 	var any_one_way := false
 	for c in range(floori(b.pos.x / ts), floori((b.pos.x + b.size.x - EPS) / ts) + 1):
 		var t := get_cell(c, r)
-		if t == Tile.SOLID:
+		if _tile_blocks(t):
 			return false
 		if t == Tile.ONE_WAY:
 			any_one_way = true
 	return any_one_way
 
 
-## Chão sólido de verdade debaixo dos dois pés (para o "último chão seguro").
+## Rocha de verdade debaixo dos dois pés (para o "último chão seguro").
+## Casca e véu não contam: podem sumir debaixo da Vela.
 func fully_on_solid(b: GridBody) -> bool:
 	var ts := float(tile_size)
 	var r := floori((b.pos.y + b.size.y + 0.5) / ts)
-	return is_solid(floori(b.pos.x / ts), r) and is_solid(floori((b.pos.x + b.size.x - EPS) / ts), r)
+	return is_rock(floori(b.pos.x / ts), r) and is_rock(floori((b.pos.x + b.size.x - EPS) / ts), r)
 
 
-## Parede encostada do lado `dir` cobrindo o meio do corpo.
+## Parede encostada do lado `dir` cobrindo o meio do corpo (véu não conta).
 func touches_wall(b: GridBody, dir: int) -> bool:
 	var ts := float(tile_size)
 	var edge := b.pos.x + b.size.x if dir > 0 else b.pos.x
@@ -216,9 +246,83 @@ func touches_wall(b: GridBody, dir: int) -> bool:
 	if absf(boundary - edge) > 0.6:
 		return false
 	for r in range(floori((b.pos.y + 4.0) / ts), floori((b.pos.y + b.size.y * 0.7) / ts) + 1):
-		if is_solid(c, r):
+		if is_wall(c, r):
 			return true
 	return false
+
+
+## Retângulo encostado em rocha ou casca (o golpe faísca; véu não).
+func overlaps_wall(p: Vector2, s: Vector2) -> bool:
+	var ts := float(tile_size)
+	for r in range(floori(p.y / ts), floori((p.y + s.y - EPS) / ts) + 1):
+		for c in range(floori(p.x / ts), floori((p.x + s.x - EPS) / ts) + 1):
+			if is_wall(c, r):
+				return true
+	return false
+
+
+func overlaps_tile(p: Vector2, s: Vector2, tile: int) -> bool:
+	var ts := float(tile_size)
+	for r in range(floori(p.y / ts), floori((p.y + s.y - EPS) / ts) + 1):
+		for c in range(floori(p.x / ts), floori((p.x + s.x - EPS) / ts) + 1):
+			if c >= 0 and r >= 0 and c < width and r < height and cells[r * width + c] == tile:
+				return true
+	return false
+
+
+func overlaps_veil(p: Vector2, s: Vector2) -> bool:
+	return overlaps_tile(p, s, Tile.VEIL)
+
+
+## Quebra as cascas de aura alcançadas pela explosão do Ren: toda casca
+## encostada no círculo racha, e a rachadura corre pelas cascas vizinhas.
+## Devolve as células quebradas.
+func break_shells(center: Vector2, radius: float) -> Array[Vector2i]:
+	var ts := float(tile_size)
+	var out: Array[Vector2i] = []
+	var queue: Array[Vector2i] = []
+	var c0 := floori((center.x - radius) / ts)
+	var c1 := floori((center.x + radius) / ts)
+	var r0 := floori((center.y - radius) / ts)
+	var r1 := floori((center.y + radius) / ts)
+	for r in range(r0, r1 + 1):
+		for c in range(c0, c1 + 1):
+			if c < 0 or r < 0 or c >= width or r >= height or cells[r * width + c] != Tile.SHELL:
+				continue
+			var nearest := Vector2(clampf(center.x, c * ts, (c + 1) * ts), clampf(center.y, r * ts, (r + 1) * ts))
+			if nearest.distance_to(center) <= radius:
+				queue.append(Vector2i(c, r))
+	while not queue.is_empty():
+		var k: Vector2i = queue.pop_back()
+		if k.x < 0 or k.y < 0 or k.x >= width or k.y >= height or cells[k.y * width + k.x] != Tile.SHELL:
+			continue
+		cells[k.y * width + k.x] = Tile.EMPTY
+		out.append(k)
+		for o: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			queue.append(k + o)
+	return out
+
+
+## Todas as células de um tipo (para desenhar véus e cascas).
+func cells_of(tile: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	for r in height:
+		for c in width:
+			if cells[r * width + c] == tile:
+				out.append(Vector2i(c, r))
+	return out
+
+
+## Linha de visão entre dois pontos (véu fechado e casca bloqueiam; amostras a cada 10 px).
+func line_clear(a: Vector2, b: Vector2) -> bool:
+	var ts := float(tile_size)
+	var d := b - a
+	var n := maxi(1, ceili(d.length() / 10.0))
+	for i in range(1, n):
+		var p := a + d * (float(i) / n)
+		if is_solid(floori(p.x / ts), floori(p.y / ts)):
+			return false
+	return true
 
 
 func spike_rect(c: int, r: int) -> Rect2:

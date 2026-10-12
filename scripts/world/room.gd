@@ -1,7 +1,7 @@
 class_name Room
 extends Node2D
 ## Monta uma sala a partir de um RoomData: fundo em camadas, névoa, luz,
-## terreno, objetos e poeira no ar.
+## terreno, véus e cascas de aura, objetos, Ecos e poeira no ar.
 
 const TS := 32.0
 
@@ -11,9 +11,15 @@ var tablets: Array[Tablet] = []
 var altars: Array[Altar] = []
 var glyphs: Array[AuraGlyph] = []
 var strikeables: Array = []
+var ecos: Array = []
 var spawn_cell := Vector2i(-1, -1)
+var ambient: CanvasModulate
+var veils: VeilView
+var shells: ShellView
 var _layers: Array = []
 var _bg_nodes: Array[Node] = []
+var _eco_root: Node2D
+var _tint_tween: Tween
 
 
 func build(rd: RoomData, background: CanvasLayer) -> void:
@@ -24,9 +30,9 @@ func build(rd: RoomData, background: CanvasLayer) -> void:
 	var s := rd.rng_seed
 
 	# luz ambiente do mundo (a Vela e as velas iluminam por cima disto)
-	var cm := CanvasModulate.new()
-	cm.color = palette["ambient"]
-	add_child(cm)
+	ambient = CanvasModulate.new()
+	ambient.color = palette["ambient"]
+	add_child(ambient)
 
 	# fundo distante: não recebe luz nem modulação
 	_add_backdrop(background, Backdrop.Kind.SKY, 0.0, true, s)
@@ -50,7 +56,23 @@ func build(rd: RoomData, background: CanvasLayer) -> void:
 	add_child(terrain)
 	terrain.build(rd.grid, palette, s)
 
+	shells = ShellView.new()
+	shells.name = "Shells"
+	shells.setup(rd.grid, s)
+	add_child(shells)
+
 	_spawn_props()
+
+	_eco_root = Node2D.new()
+	_eco_root.name = "Ecos"
+	_eco_root.z_index = 4
+	add_child(_eco_root)
+	_spawn_ecos()
+
+	veils = VeilView.new()
+	veils.name = "Veils"
+	veils.setup(rd.grid, s)
+	add_child(veils)
 	_add_dust(size)
 
 	_add_backdrop(self, Backdrop.Kind.FOREGROUND, 1.22, false, s)
@@ -200,8 +222,60 @@ func _spawn_props() -> void:
 				rb.setup(palette, data.rng_seed + cell.x * 7 + cell.y)
 				rb.position = base
 				props.add_child(rb)
+			"V", "S", "M":
+				pass  # Ecos: _spawn_ecos()
 			_:
 				push_warning("Marcador desconhecido '%s' em %s (%s)" % [ch, cell, data.id])
+
+
+# ---------------------------------------------------------------------------
+# Ecos
+# ---------------------------------------------------------------------------
+
+func _spawn_ecos() -> void:
+	for m in data.grid.markers:
+		var e: Eco = null
+		match m["ch"]:
+			"V":
+				e = Vigia.new()
+			"S":
+				e = Saltador.new()
+			"M":
+				e = Mariposa.new()
+		if e == null:
+			continue
+		e.setup(data.grid, m["cell"])
+		_add_eco(e)
+
+
+func _add_eco(e: Eco) -> void:
+	e.facing = 1 if e.home.x < data.grid.pixel_size().x * 0.5 else -1
+	_eco_root.add_child(e)
+	ecos.append(e)
+	strikeables.append(e)
+
+
+## O Eco póstumo da Vela aparece onde ela apagou.
+func spawn_shade(center: Vector2) -> EcoVela:
+	var sh := EcoVela.new()
+	sh.setup_at(data.grid, center)
+	_add_eco(sh)
+	return sh
+
+
+func step_ecos(dt: float, player: Player) -> void:
+	Eco.update_all(ecos, dt, player)
+
+
+## Zetsu: o mundo escurece um pouco junto com a chama da Vela.
+func set_hidden_tint(on: bool) -> void:
+	if _tint_tween and _tint_tween.is_valid():
+		_tint_tween.kill()
+	var target: Color = palette["ambient"]
+	if on:
+		target = target.darkened(0.28).lerp(Color(0.32, 0.36, 0.5), 0.2)
+	_tint_tween = create_tween()
+	_tint_tween.tween_property(ambient, "color", target, 0.35)
 
 
 ## Estela mais próxima dentro do alcance (ou null).

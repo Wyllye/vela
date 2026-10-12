@@ -3,6 +3,8 @@ extends Node2D
 ## Desenha a Vela em código: batina de cera que pinga, capuz, olhos de brasa,
 ## pavio com chama de aura, cajado de anéis e o rastro do golpe.
 ## Animação procedural: molas de squash/stretch, inclinação, barra atrasada.
+## A chama é a interface da aura: cresce e diminui com ela, tremula quando
+## falta, vaza antes do Ten, apaga no Zetsu e explode no Ren.
 ## Origem = pés; desenhado olhando para a direita e espelhado pela escala.
 
 const WAX := Color("ebe0ca")
@@ -35,14 +37,21 @@ var flame_boost := 0.0
 var wake := 1.0
 var hurt_flash := 0.0
 var bob := 0.0
+## 0..1: Zetsu e Ren suavizados; morte (derretendo).
+var zetsu_k := 0.0
+var ren_k := 0.0
+var dying := 0.0
 
 var flame: FlameNode
 var flame_glow: Sprite2D
 var flame_light: PointLight2D
 var embers: CPUParticles2D
 var slide_dust: CPUParticles2D
+var leak: CPUParticles2D
 var _eyes: Eyes
 var _slash: Slash
+var _veil: AuraVeil
+var _front: AuraFront
 
 
 func _ready() -> void:
@@ -64,6 +73,13 @@ func _ready() -> void:
 	_slash = Slash.new()
 	_slash.view = self
 	add_child(_slash)
+	_veil = AuraVeil.new()
+	_veil.view = self
+	add_child(_veil)
+	move_child(_veil, 0)
+	_front = AuraFront.new()
+	_front.view = self
+	add_child(_front)
 
 	flame_light = FX.make_light(aura.lerp(Color(1, 0.9, 0.75), 0.5), 300.0, 1.15)
 	flame_light.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
@@ -106,6 +122,33 @@ func _ready() -> void:
 	slide_dust.color = Color(0.8, 0.82, 0.86, 0.6)
 	player.add_child.call_deferred(slide_dust)
 
+	# aura escorrendo do corpo antes do Ten
+	leak = CPUParticles2D.new()
+	leak.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	leak.amount = 34
+	leak.lifetime = 1.4
+	leak.emitting = false
+	leak.local_coords = false
+	leak.texture = FX.dot_texture()
+	leak.material = FX.additive()
+	leak.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	leak.emission_rect_extents = Vector2(11, 20)
+	leak.position = Vector2(0, -24)
+	leak.direction = Vector2(0, 1)
+	leak.spread = 75.0
+	leak.initial_velocity_min = 10.0
+	leak.initial_velocity_max = 34.0
+	leak.gravity = Vector2(0, 55)
+	leak.damping_min = 6.0
+	leak.damping_max = 12.0
+	leak.scale_amount_min = 0.08
+	leak.scale_amount_max = 0.17
+	var lramp := Gradient.new()
+	lramp.offsets = PackedFloat32Array([0.0, 0.25, 1.0])
+	lramp.colors = PackedColorArray([Color(aura, 0.0), Color(aura.lightened(0.25), 0.95), Color(aura, 0.0)])
+	leak.color_ramp = lramp
+	player.add_child.call_deferred(leak)
+
 
 func _on_fx(ev: StringName, data: Dictionary) -> void:
 	match ev:
@@ -141,6 +184,20 @@ func _on_fx(ev: StringName, data: Dictionary) -> void:
 			wake = 0.0
 		&"respawn_teleport":
 			_kick(Vector2(0.7, 1.3))
+			flame_boost = 1.0
+		&"hit":
+			hurt_flash = 1.0
+			_kick(Vector2(1.28, 0.78))
+			ring_v += 8.0
+		&"ren_burst":
+			_kick(Vector2(1.22, 0.86))
+			flame_boost = 1.0
+			ring_v += 12.0
+		&"melt":
+			_kick(Vector2(1.12, 0.9))
+		&"revive":
+			dying = 0.0
+			wake = 0.0
 			flame_boost = 1.0
 
 
@@ -185,19 +242,31 @@ func _process(delta: float) -> void:
 	blink = move_toward(blink, 0.0, delta * 9.0)
 	flame_boost = move_toward(flame_boost, 0.0, delta * 1.8)
 	hurt_flash = move_toward(hurt_flash, 0.0, delta * 3.0)
+	zetsu_k = move_toward(zetsu_k, 1.0 if p.zetsu else 0.0, delta * 6.0)
+	ren_k = move_toward(ren_k, 1.0 if p.ren else 0.0, delta * (9.0 if p.ren else 4.0))
+	if st == Player.State.DEAD:
+		dying = move_toward(dying, 1.0, delta / 1.3)
 	if st == Player.State.WAKE:
-		wake = clampf(p.state_time / (Player.WAKE_TIME * 0.8), 0.0, 1.0)
-	elif st != Player.State.INTRO_FALL:
+		wake = clampf(p.state_time / (p.wake_len * 0.8), 0.0, 1.0)
+	elif st != Player.State.INTRO_FALL and st != Player.State.DEAD:
 		wake = move_toward(wake, 1.0, delta * 3.0)
 
-	scale = Vector2(p.facing * sq.x, sq.y)
-	rotation = lean
-	modulate = Color(1, 1, 1).lerp(Color(1.6, 1.4, 1.2), hurt_flash)
+	var dk := dying * dying * (3.0 - 2.0 * dying)
+	scale = Vector2(p.facing * lerpf(sq.x, 1.65, dk), lerpf(sq.y, 0.2, dk))
+	rotation = lean * (1.0 - dk)
+	var mod := Color(1, 1, 1).lerp(Color(1.6, 1.4, 1.2), hurt_flash)
+	mod = mod.lerp(Color(0.66, 0.7, 0.8), zetsu_k * 0.85)
+	mod = mod.lerp(Color(0.55, 0.52, 0.5), dk * 0.6)
+	if p.invuln_t > 0.0 and st != Player.State.DEAD and fmod(p.invuln_t, 0.12) < 0.05:
+		mod.a = 0.35
+	modulate = mod
 	visible = not (st == Player.State.RESPAWN and p.state_time < Player.RESPAWN_BLACK + 0.05)
 	_update_flame()
 	queue_redraw()
 	_eyes.queue_redraw()
 	_slash.queue_redraw()
+	_veil.queue_redraw()
+	_front.queue_redraw()
 
 
 func _flame_base() -> Vector2:
@@ -212,22 +281,42 @@ func _update_flame() -> void:
 	elif p.state == Player.State.WAKE:
 		weak = lerpf(0.45, 1.0, wake)
 	var local_vx := p.vel.x * p.facing
+	var dk := clampf(dying * 2.5, 0.0, 1.0)
+	var ak := clampf(p.aura_frac(), 0.0, 1.0)
+	# pouca aura: a chama tremula e esfria
+	var low := 1.0 - clampf(ak / 0.22, 0.0, 1.0)
+	var jitter := 0.0
+	if p.is_leaking():
+		jitter = 0.28 * sin(t * 17.0) * sin(t * 5.3) + 0.12 * sin(t * 31.0)
+	jitter += low * 0.3 * sin(t * 27.0) * sin(t * 7.1)
+	var size_k := (0.42 + 0.72 * ak) * (1.0 + 0.7 * ren_k) * (1.0 + jitter) * (1.0 - dk)
 	flame.position = _flame_base()
-	flame.height = (14.0 + flame_boost * 8.0) * weak * (1.0 + clampf(p.vel.y * 0.0005, -0.25, 0.35))
-	flame.width = (6.6 + flame_boost * 2.0) * lerpf(0.7, 1.0, weak)
-	flame.tilt = clampf(-local_vx * 0.0011, -0.5, 0.5)
+	var h := (14.0 + flame_boost * 8.0) * weak * size_k * (1.0 + clampf(p.vel.y * 0.0005, -0.25, 0.35))
+	flame.height = lerpf(h, 2.6 * (1.0 - dk), zetsu_k)
+	flame.width = lerpf((6.6 + flame_boost * 2.0) * lerpf(0.7, 1.0, weak) * (0.78 + 0.22 * ak) * (1.0 + 0.3 * ren_k), 2.2, zetsu_k)
+	flame.tilt = clampf(-local_vx * 0.0011, -0.5, 0.5) + jitter * 0.5
+	var outer := aura.lerp(Color(0.62, 0.74, 1.0), low * 0.55).lerp(Color.WHITE, ren_k * 0.2)
+	flame.outer = outer.lerp(Color(0.75, 0.3, 0.18), zetsu_k)
+	flame.inner = Color(1.0, 0.86, 0.55).lerp(Color(0.85, 0.4, 0.22), zetsu_k)
+	flame.core = Color(1.0, 0.97, 0.88).lerp(Color(1.0, 0.6, 0.4), zetsu_k)
 	flame_glow.position = _flame_base() + Vector2(0, -6)
-	flame_glow.modulate.a = (0.5 + flame_boost * 0.3) * weak
+	flame_glow.modulate.a = (0.5 + flame_boost * 0.3 + ren_k * 0.55) * weak * (0.55 + 0.45 * ak) * (1.0 - zetsu_k) * (1.0 - dk)
+	flame_glow.scale = Vector2.ONE * ((70.0 + 60.0 * ren_k) / 128.0)
 	flame.visible = visible
 	flame_glow.visible = visible
 	var world_flame := transform * (_flame_base() + Vector2(0, -6))
 	if is_instance_valid(flame_light):
 		flame_light.position = world_flame
-		flame_light.energy = (1.15 + flame_boost * 0.9) * weak * (0.94 + 0.06 * sin(t * 11.0))
+		var e := (0.6 + 0.75 * ak + flame_boost * 0.9 + ren_k * 0.45) * weak * (0.94 + 0.06 * sin(t * 11.0))
+		flame_light.energy = e * (1.0 - zetsu_k * 0.93) * (1.0 - dk)
+		flame_light.texture_scale = (300.0 + 220.0 * ren_k) / 256.0
 		flame_light.visible = visible
 	if is_instance_valid(embers):
 		embers.position = world_flame
-		embers.emitting = visible
+		embers.emitting = visible and zetsu_k < 0.5 and dk < 0.5
+		embers.speed_scale = 1.0 + ren_k * 1.4
+	if is_instance_valid(leak):
+		leak.emitting = visible and p.is_leaking() and zetsu_k < 0.5 and dk < 0.5 and p.state != Player.State.INTRO_FALL
 	if is_instance_valid(slide_dust):
 		slide_dust.position = Vector2(p.wall_dir * (p.body.size.x * 0.5), -26.0)
 
@@ -440,17 +529,18 @@ class Eyes extends Node2D:
 		elif p.wall_sliding:
 			draw_set_transform(Vector2(-2.5, 0), 0.0, Vector2.ONE)
 		var closed := v.blink
-		if p.state == Player.State.INTRO_FALL or (p.state == Player.State.WAKE and v.wake < 0.55):
+		if p.state == Player.State.INTRO_FALL or (p.state == Player.State.WAKE and v.wake < 0.55) or v.dying > 0.35:
 			closed = 1.0
 		var open := 1.0 - closed
+		var dim := 1.0 - 0.55 * v.zetsu_k
 		var y := -38.2 + v.bob
 		for x in [3.6, 7.6]:
-			draw_circle(Vector2(x, y), 3.2, Color(v.aura, 0.12 * open + 0.02))
+			draw_circle(Vector2(x, y), 3.2, Color(v.aura, (0.12 * open + 0.02) * dim))
 			var pts := PackedVector2Array()
 			for i in 12:
 				var a := TAU * i / 12.0
 				pts.append(Vector2(x + cos(a) * 1.1, y + sin(a) * maxf(2.0 * open, 0.3)))
-			draw_colored_polygon(pts, Color(PlayerView.EYE, 0.95))
+			draw_colored_polygon(pts, Color(PlayerView.EYE, 0.95 * dim))
 
 
 ## Rastro do golpe do cajado (meia-lua aditiva).
@@ -485,7 +575,8 @@ class Slash extends Node2D:
 				a1 = 195.0
 		var a_cur := lerpf(a0, a1, e)
 		var fade := 1.0 - clampf((k - 0.3) / 0.32, 0.0, 1.0)
-		var col := Color.WHITE.lerp(view.aura, 0.35)
+		var col := Color.WHITE.lerp(view.aura, 0.35 + 0.4 * view.ren_k)
+		r_out += 7.0 * view.ren_k
 		var steps := 18
 		var outer := PackedVector2Array()
 		var inner := PackedVector2Array()
@@ -494,7 +585,7 @@ class Slash extends Node2D:
 		for i in range(steps + 1):
 			var s := float(i) / steps
 			var a := deg_to_rad(lerpf(a0, a_cur, s))
-			var thick := 15.0 * sin(PI * clampf(s * 0.92 + 0.08, 0.0, 1.0))
+			var thick := (15.0 + 7.0 * view.ren_k) * sin(PI * clampf(s * 0.92 + 0.08, 0.0, 1.0))
 			outer.append(center + Vector2(cos(a), sin(a)) * r_out)
 			inner.append(center + Vector2(cos(a), sin(a)) * (r_out - thick))
 			var alpha := pow(s, 1.6) * 0.85 * fade
@@ -506,3 +597,59 @@ class Slash extends Node2D:
 			pts.append(inner[i])
 			cols.append(cols_i[i])
 		draw_polygon(pts, cols)
+
+
+## Aura envolvendo o corpo: um contorno quase invisível com o Ten; no Ren, um
+## manto de chama grande atrás da Vela e labaredas na frente; nada no Zetsu.
+## Fica atrás do corpo (aditivo, sem sombra); as labaredas vão no AuraFront.
+class AuraVeil extends Node2D:
+	var view: PlayerView
+
+	func _ready() -> void:
+		material = FX.additive()
+		light_mask = 0
+		show_behind_parent = true
+
+	func _draw() -> void:
+		var v := view
+		var p := v.player
+		if not v.visible or v.dying > 0.05 or v.wake < 0.9:
+			return
+		var ten := 0.0 if p.is_leaking() else 1.0
+		var strength := ten * 0.07 * (1.0 - v.zetsu_k) + v.ren_k * 0.45
+		if strength < 0.01:
+			return
+		if v.ren_k > 0.02:
+			# manto: uma chama de aura do tamanho da Vela inteira
+			var fl := 0.9 + 0.07 * sin(v.t * 13.0) + 0.05 * sin(v.t * 29.0)
+			FX.draw_flame(self, Vector2(0, 6), 92.0 * fl * v.ren_k, 58.0, sin(v.t * 2.1) * 0.05,
+				Color(v.aura, 0.42 * v.ren_k), Color(1.0, 0.86, 0.6, 0.22 * v.ren_k), Color(1, 1, 1, 0.08 * v.ren_k))
+		var pts := v._robe_points()
+		var c := Vector2(0, -20.0 + v.bob)
+		var grow := 1.12 + 0.12 * v.ren_k + 0.03 * sin(v.t * 9.0)
+		var outline := PackedVector2Array()
+		for q in v._smooth_closed(pts, 2):
+			outline.append(c + (q - c) * grow)
+		outline.append(outline[0])
+		draw_polyline(outline, Color(v.aura, strength), 2.0 + 2.5 * v.ren_k, true)
+
+
+## Labaredas de aura na frente do corpo durante o Ren.
+class AuraFront extends Node2D:
+	var view: PlayerView
+
+	func _ready() -> void:
+		material = FX.additive()
+		light_mask = 0
+
+	func _draw() -> void:
+		var v := view
+		if v.ren_k < 0.05 or not v.visible or v.dying > 0.05:
+			return
+		for i in 5:
+			var x := lerpf(-12.0, 12.0, i / 4.0)
+			var ph := v.t * (6.0 + i) + i * 1.7
+			var hh := (12.0 + 8.0 * sin(ph)) * v.ren_k
+			var base := Vector2(x, -18.0 + absf(x) * 0.5 + v.bob)
+			FX.draw_flame(self, base, hh, 5.0, sin(ph * 0.7) * 0.3,
+				Color(v.aura, 0.35 * v.ren_k), Color(1.0, 0.9, 0.7, 0.25 * v.ren_k), Color(1, 1, 1, 0.15 * v.ren_k))

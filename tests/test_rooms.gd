@@ -1,7 +1,7 @@
 extends "res://tests/test_base.gd"
 ## Salas: dados válidos, portas que se conectam e desafios vencíveis.
 
-const ROOMS := ["poco_fundo", "galeria", "lanternas", "limiar"]
+const ROOMS := ["poco_fundo", "dormitorio", "galeria", "lanternas", "votos", "limiar"]
 const OPPOSITE := {"left": "right", "right": "left", "top": "bottom", "bottom": "top"}
 
 
@@ -135,3 +135,55 @@ func _open_room(w: int, h: int) -> Array:
 		rows.append("#" + ".".repeat(w - 2) + "#")
 	rows.append("#".repeat(w))
 	return rows
+
+
+func _room_player(id: String, cell: Vector2i) -> Player:
+	var rd := RoomData.load_room(id)
+	var p := Player.new()
+	p.input = ScriptedInput.new()
+	_nodes.append(p)
+	p.setup(rd.grid, Vector2(cell.x * 32.0 + 5.0, (cell.y + 1) * 32.0 - 44.0))
+	return p
+
+
+func test_lesson_altars_in_order() -> void:
+	var want := {"poco_fundo": "ten", "dormitorio": "zetsu", "votos": "ren", "limiar": "end"}
+	for id: String in want:
+		var rd := RoomData.load_room(id)
+		check(rd.altar_lesson == want[id], "%s ensina %s (veio %s)" % [id, want[id], rd.altar_lesson])
+		check(rd.markers_of("A").size() == 1, "%s tem um altar" % id)
+
+
+func test_dormitory_door_needs_zetsu() -> void:
+	var p := _room_player("dormitorio", Vector2i(52, 21))
+	inp(p).set_held(&"move_right", true)
+	run(p, 120)
+	check(p.exit_side() == "", "sem Zetsu o véu segura a Vela")
+	inp(p).set_held(&"zetsu", true)
+	var out := false
+	for i in 180:
+		p.step(DT)
+		if p.exit_side() == "right":
+			out = true
+			break
+	check(out, "no Zetsu ela atravessa o véu e chega na porta")
+
+
+func test_vows_exit_needs_ren() -> void:
+	var p := _room_player("votos", Vector2i(58, 13))
+	run(p, 10)
+	check(p.grounded, "de pé na saída alta")
+	inp(p).set_held(&"move_right", true)
+	run(p, 90)
+	check(p.exit_side() == "", "a casca de aura lacra a saída")
+	p.aura = 100.0
+	inp(p).set_held(&"ren", true)
+	p.step(DT)
+	inp(p).set_held(&"ren", false)
+	var out := false
+	for i in 180:
+		p.step(DT)
+		if p.exit_side() == "right":
+			out = true
+			break
+	check(out, "o Ren racha a casca e a porta abre")

@@ -1,0 +1,6 @@
+[gd_resource type="Resource" script_class="NenTuning" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/player/nen_tuning.gd" id="1_nen"]
+
+[resource]
+script = ExtResource("1_nen")

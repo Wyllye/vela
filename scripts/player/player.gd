@@ -1,6 +1,7 @@
 class_name Player
 extends Node2D
-## A Vela: controle de movimento com física própria em grade (LevelGrid).
+## A Vela: movimento com física própria em grade (LevelGrid), Vitalidade
+## (gotas de cera), Aura (a chama) e os fundamentos do Nen: Ten, Zetsu e Ren.
 ##
 ## Toda a lógica roda em `step(dt)`, sem depender da árvore de cenas — os testes
 ## chamam `step()` direto com um ScriptedInput. Efeitos (som, partículas,
@@ -8,7 +9,7 @@ extends Node2D
 
 signal fx(event: StringName, data: Dictionary)
 
-enum State { NORMAL, DASH, HURT, RESPAWN, INTRO_FALL, WAKE, REST, LOCKED, ENTER }
+enum State { NORMAL, DASH, HURT, RESPAWN, INTRO_FALL, WAKE, REST, LOCKED, ENTER, KNOCKBACK, DEAD }
 
 const SIZE := Vector2(22, 44)
 const DASH_BUFFER := 0.08
@@ -18,9 +19,12 @@ const HURT_TIME := 0.38
 const RESPAWN_BLACK := 0.30
 const RESPAWN_TIME := 0.62
 const WAKE_TIME := 1.8
+const REVIVE_WAKE_TIME := 1.25
 const LOOK_DELAY := 0.45
+const RECOIL_TIME := 0.08
 
 @export var tuning: MovementTuning
+@export var nen: NenTuning
 
 var grid: LevelGrid
 var input: PlayerInput = PlayerInput.new()
@@ -30,8 +34,29 @@ var facing := 1
 var state: State = State.NORMAL
 var state_time := 0.0
 
-## Habilidades liberadas. Na Etapa 1 todas vêm ligadas para testar a sensação.
+## Habilidades de movimento liberadas (todas ligadas até a Etapa 5).
 var abilities := {"dash": true, "wall": true, "air_jump": true, "pogo": true}
+
+# --- Nen e vida ---
+## Técnicas aprendidas. O padrão (tudo) serve aos testes e ao --room; um jogo
+## novo começa sem nenhuma (main.gd).
+var learned := {"ten": true, "zetsu": true, "ren": true}
+var vitality := 5
+var vitality_max := 5
+var aura := 100.0
+## Aura máxima atual: cai quando o Eco póstumo guarda parte dela.
+var aura_max := 100.0
+var zetsu := false
+var ren := false
+var invuln_t := 0.0
+var regen_delay_t := 0.0
+var recoil_t := 0.0
+var recoil_vx := 0.0
+var wake_len := WAKE_TIME
+var deaths := 0
+var hits_taken := 0
+## Como a Vela joga (a Adivinhação da Água, na Etapa 4, lê isto).
+var style := {"ren": 0, "zetsu_time": 0.0, "strikes": 0, "sneak": 0, "melts": 0}
 
 # --- chão e pulo ---
 var grounded := false
@@ -81,6 +106,12 @@ func _init() -> void:
 	body.size = SIZE
 	if tuning == null:
 		tuning = MovementTuning.new()
+	if nen == null:
+		nen = NenTuning.new()
+	vitality_max = nen.vitality_max
+	vitality = vitality_max
+	aura_max = nen.aura_max
+	aura = aura_max
 
 
 func setup(level: LevelGrid, top_left: Vector2) -> void:
@@ -111,6 +142,10 @@ func step(dt: float) -> void:
 	input.poll()
 	state_time += dt
 	_tick_timers(dt)
+	if state != State.DEAD:
+		_update_nen(dt)
+	# véus só se abrem para a Vela, e só durante o Zetsu
+	grid.veil_open = zetsu
 	match state:
 		State.NORMAL:
 			_update_normal(dt)
@@ -126,8 +161,13 @@ func step(dt: float) -> void:
 			_update_wake(dt)
 		State.ENTER:
 			_update_enter(dt)
+		State.KNOCKBACK:
+			_update_knockback(dt)
+		State.DEAD:
+			_update_dead(dt)
 		_:
 			_update_locked(dt)
+	grid.veil_open = false
 	_sync_node()
 
 
@@ -141,6 +181,8 @@ func _tick_timers(dt: float) -> void:
 	attack_t = maxf(attack_t - dt, 0.0)
 	attack_cd_t = maxf(attack_cd_t - dt, 0.0)
 	drop_t = maxf(drop_t - dt, 0.0)
+	invuln_t = maxf(invuln_t - dt, 0.0)
+	recoil_t = maxf(recoil_t - dt, 0.0)
 	if not grounded:
 		coyote_t = maxf(coyote_t - dt, 0.0)
 		air_time += dt
@@ -171,7 +213,8 @@ func _update_normal(dt: float) -> void:
 	_update_look(mx, my, dt)
 
 	# --- horizontal ---
-	var target := mx * t.run_speed
+	var top := t.run_speed * _speed_mult()
+	var target := mx * top
 	var accel: float
 	if grounded:
 		if mx == 0:
@@ -182,11 +225,14 @@ func _update_normal(dt: float) -> void:
 			accel = t.ground_accel
 	else:
 		accel = t.air_accel if mx != 0 else t.air_decel
-	if mx != 0 and signf(vel.x) == float(mx) and absf(vel.x) > t.run_speed:
+	if mx != 0 and signf(vel.x) == float(mx) and absf(vel.x) > top:
 		accel = t.overspeed_decel
 	if wall_lock_t > 0.0:
 		accel *= 0.25
-	vel.x = move_toward(vel.x, target, accel * dt)
+	if recoil_t > 0.0:
+		vel.x = recoil_vx
+	else:
+		vel.x = move_toward(vel.x, target, accel * dt)
 
 	# --- pulo (chão > parede > aéreo) ---
 	if jump_buffer_t > 0.0:
@@ -198,7 +244,11 @@ func _update_normal(dt: float) -> void:
 		elif abilities["wall"] and (wall_dir != 0 or wall_coyote_t > 0.0):
 			_wall_jump(wall_dir if wall_dir != 0 else last_wall_dir)
 		elif abilities["air_jump"] and air_jumps_left > 0:
-			_air_jump()
+			if not zetsu and _can_afford():
+				_spend(nen.air_jump_cost)
+				_air_jump()
+			elif input.pressed(&"jump"):
+				fx.emit(&"fizzle", {"pos": body.center()})
 	if input.released(&"jump") and jump_cuttable and vel.y < 0.0:
 		vel.y *= t.jump_cut_mult
 		jump_cuttable = false
@@ -229,9 +279,14 @@ func _update_normal(dt: float) -> void:
 
 	# --- passo de Ren ---
 	if dash_buffer_t > 0.0 and abilities["dash"] and dash_ready and dash_cd_t <= 0.0:
-		_start_dash(mx)
-		_update_dash(dt)
-		return
+		if zetsu or not _can_afford():
+			dash_buffer_t = 0.0
+			fx.emit(&"fizzle", {"pos": body.center()})
+		else:
+			_spend(nen.dash_cost)
+			_start_dash(mx)
+			_update_dash(dt)
+			return
 
 	_move(dt)
 	_resolve_attack()
@@ -363,7 +418,8 @@ func _update_dash(dt: float) -> void:
 			_move(dt)
 			_post_move(dt)
 			return
-		if abilities["air_jump"] and air_jumps_left > 0:
+		if abilities["air_jump"] and air_jumps_left > 0 and not zetsu and _can_afford():
+			_spend(nen.air_jump_cost)
 			_end_dash(keep)
 			_air_jump()
 			_move(dt)
@@ -425,31 +481,48 @@ func _resolve_attack() -> void:
 	if attack_resolved or not attack_active():
 		return
 	var hb := attack_rect()
-	# objetos (lanternas etc.)
+	# Ecos e objetos (lanternas etc.)
 	for obj in strikeables:
 		if is_instance_valid(obj) and obj.hit_rect().intersects(hb):
 			var pogo: bool = attack_dir == 1 and abilities["pogo"]
 			if obj.on_struck(self, attack_dir, pogo):
 				attack_resolved = true
+				var is_eco := obj is Eco
+				if is_eco:
+					style["strikes"] += 1
+					_gain_aura(nen.strike_gain)
+				elif pogo:
+					_gain_aura(nen.pogo_gain)
 				if pogo:
 					_pogo(Vector2(body.center().x, obj.hit_rect().position.y))
+				elif is_eco:
+					if attack_dir == 0:
+						_recoil(-facing * nen.strike_recoil)
 				else:
 					fx.emit(&"strike", {"pos": hb.get_center(), "dir": attack_dir})
 				return
 	# espinhos: pogo
 	if attack_dir == 1 and abilities["pogo"] and grid.spike_in(hb):
 		attack_resolved = true
+		_gain_aura(nen.pogo_gain)
 		_pogo(Vector2(body.center().x, body.pos.y + body.size.y + 16.0))
 		return
-	# pedra: faísca e recuo
-	if attack_dir != 1 and grid.overlaps_solid(hb.position, hb.size):
+	# pedra (ou casca de aura): faísca e recuo
+	if attack_dir != 1 and grid.overlaps_wall(hb.position, hb.size):
 		attack_resolved = true
 		if attack_dir == 0:
 			vel.x -= facing * tuning.wall_hit_recoil
 		var tip := Vector2(hb.end.x - 4.0 if facing > 0 else hb.position.x + 4.0, hb.get_center().y)
 		if attack_dir == -1:
 			tip = Vector2(hb.get_center().x, hb.position.y + 6.0)
-		fx.emit(&"wall_hit", {"pos": tip, "dir": attack_dir})
+		var on_shell := grid.overlaps_tile(hb.position, hb.size, LevelGrid.Tile.SHELL)
+		fx.emit(&"shell_ting" if on_shell else &"wall_hit", {"pos": tip, "dir": attack_dir})
+
+
+func _recoil(vx: float) -> void:
+	recoil_t = RECOIL_TIME
+	recoil_vx = vx
+	vel.x = vx
 
 
 func _pogo(at: Vector2) -> void:
@@ -539,17 +612,26 @@ func hurtbox() -> Rect2:
 # Dano de ambiente, respawn, intro, entrada de sala, descanso
 # ===========================================================================
 
+## Espinho: perde gota(s) e volta para o último chão seguro.
 func _hurt() -> void:
-	state = State.HURT
-	state_time = 0.0
+	# empurrada para o espinho por um Eco: a gota já foi
+	var dmg := 0 if state == State.KNOCKBACK else damage_mult()
+	vitality = maxi(vitality - dmg, 0)
 	hurt_count += 1
-	vel = Vector2(-facing * 110.0, -330.0)
+	_end_ren()
+	if zetsu:
+		_set_zetsu(false)
 	attack_t = 0.0
 	dash_t = 0.0
-	if wall_sliding:
-		wall_sliding = false
-		fx.emit(&"wall_slide", {"on": false, "dir": wall_dir})
-	fx.emit(&"hurt", {"pos": body.center()})
+	_stop_wall_slide()
+	if vitality <= 0:
+		fx.emit(&"hurt", {"pos": body.center(), "dmg": dmg, "fatal": true})
+		_die()
+		return
+	state = State.HURT
+	state_time = 0.0
+	vel = Vector2(-facing * 110.0, -330.0)
+	fx.emit(&"hurt", {"pos": body.center(), "dmg": dmg, "fatal": false})
 
 
 func _update_hurt(dt: float) -> void:
@@ -570,6 +652,7 @@ func _update_respawn(_dt: float) -> void:
 		_sync_node()
 		if is_inside_tree():
 			reset_physics_interpolation()
+		invuln_t = 0.6
 		fx.emit(&"respawn_teleport", {"pos": body.center()})
 	if state_time >= RESPAWN_TIME:
 		state = State.NORMAL
@@ -581,6 +664,7 @@ func start_intro_fall() -> void:
 	state = State.INTRO_FALL
 	state_time = 0.0
 	vel = Vector2.ZERO
+	wake_len = WAKE_TIME
 
 
 func _update_intro_fall(dt: float) -> void:
@@ -594,10 +678,11 @@ func _update_wake(dt: float) -> void:
 	vel = Vector2.ZERO
 	_update_ground()
 	# Depois de um tempo, qualquer botão adianta o despertar.
-	if state_time >= WAKE_TIME or (state_time > 0.9 and (input.any_pressed() or input.move.x != 0.0)):
+	var early := minf(0.9, wake_len * 0.6)
+	if state_time >= wake_len or (state_time > early and (input.any_pressed() or input.move.x != 0.0)):
 		state = State.NORMAL
 		state_time = 0.0
-		fx.emit(&"wake_done", {})
+		fx.emit(&"wake_done", {"revive": wake_len != WAKE_TIME})
 	_move(dt)
 
 
@@ -640,6 +725,10 @@ func rest() -> void:
 	state = State.REST
 	state_time = 0.0
 	vel = Vector2.ZERO
+	_end_ren()
+	if zetsu:
+		_set_zetsu(false)
+	_stop_wall_slide()
 
 
 func stand_up() -> void:
@@ -663,6 +752,255 @@ func _update_locked(dt: float) -> void:
 	if not grounded:
 		vel.y = minf(vel.y + tuning.gravity * tuning.fall_gravity_mult * dt, tuning.max_fall)
 	_move(dt)
+
+
+# ===========================================================================
+# Nen: aura, Ten, Zetsu e Ren
+# ===========================================================================
+
+func _update_nen(dt: float) -> void:
+	var free := state == State.NORMAL or state == State.DASH or state == State.KNOCKBACK or state == State.ENTER
+	# Zetsu: segurar fecha os nós de aura (dentro de um véu a chama não reacende)
+	var want_zetsu: bool = free and learned["zetsu"] and input.held(&"zetsu")
+	if zetsu and not want_zetsu and grid.overlaps_veil(body.pos, body.size):
+		want_zetsu = true
+	if want_zetsu != zetsu:
+		_set_zetsu(want_zetsu)
+	if zetsu:
+		style["zetsu_time"] += dt
+	# Ren: apertar explode a aura, segurar mantém aberto
+	if ren and (not input.held(&"ren") or not free or zetsu or aura <= 0.0):
+		_end_ren()
+	elif not ren and free and not zetsu and learned["ren"] and input.pressed(&"ren"):
+		_start_ren()
+	# aura
+	var cap := aura_cap()
+	if ren:
+		aura -= nen.ren_drain * dt
+	elif regen_delay_t > 0.0:
+		regen_delay_t = maxf(regen_delay_t - dt, 0.0)
+	elif zetsu:
+		aura += nen.zetsu_regen * dt
+	elif state == State.NORMAL or state == State.DASH or state == State.ENTER:
+		var rate := nen.regen_air
+		if grounded:
+			rate = nen.regen_still if absf(vel.x) < 25.0 else nen.regen_moving
+		aura += rate * dt
+	if not learned["ten"]:
+		aura -= nen.leak_rate * dt
+	aura = clampf(aura, 0.0, cap)
+
+
+## Quanto de aura a chama segura agora (antes do Ten ela vaza e segura pouco).
+func aura_cap() -> float:
+	return aura_max * (1.0 if learned["ten"] else nen.leak_cap)
+
+
+## Aura relativa à chama cheia de verdade (o desenho da chama usa isto).
+func aura_frac() -> float:
+	return aura / maxf(nen.aura_max, 1.0)
+
+
+func is_leaking() -> bool:
+	return not learned["ten"]
+
+
+func _speed_mult() -> float:
+	if zetsu:
+		return nen.zetsu_speed_mult
+	if ren:
+		return nen.ren_speed_mult
+	return 1.0
+
+
+## Dá para pagar uma habilidade: tem aura, ou dá para derreter uma gota sem apagar.
+func _can_afford() -> bool:
+	return aura > 0.5 or vitality > 1
+
+
+## Paga com aura; com a chama zerada, derrete uma gota de cera.
+func _spend(cost: float) -> void:
+	regen_delay_t = nen.regen_delay
+	if aura > 0.5:
+		aura = maxf(aura - cost, 0.0)
+		return
+	vitality -= 1
+	style["melts"] += 1
+	fx.emit(&"melt", {"pos": body.center()})
+
+
+func _gain_aura(amount: float) -> void:
+	aura = minf(aura + amount, aura_cap())
+
+
+func _set_zetsu(on: bool) -> void:
+	zetsu = on
+	if on:
+		_end_ren()
+	fx.emit(&"zetsu", {"on": on, "pos": body.center()})
+
+
+func _start_ren() -> void:
+	if aura < nen.ren_min_aura:
+		fx.emit(&"fizzle", {"pos": body.center()})
+		return
+	aura -= nen.ren_burst_cost
+	regen_delay_t = nen.regen_delay
+	ren = true
+	style["ren"] += 1
+	var c := body.center()
+	var broken := grid.break_shells(c, nen.ren_burst_radius)
+	for obj in strikeables:
+		if is_instance_valid(obj) and obj.has_method("on_ren_burst"):
+			obj.on_ren_burst(self, c, nen.ren_burst_radius)
+	fx.emit(&"ren_burst", {"pos": c, "radius": nen.ren_burst_radius, "broken": broken})
+
+
+func _end_ren() -> void:
+	if ren:
+		ren = false
+		fx.emit(&"ren_end", {"pos": body.center()})
+
+
+## Dano recebido: dobra sem Ten (a aura vaza) e no Zetsu (a aura fica fechada).
+func damage_mult() -> int:
+	return 2 if (zetsu or not learned["ten"]) else 1
+
+
+## Dano do golpe do cajado: o Ren dobra; acertar um Eco desatento soma um.
+func strike_damage(target_aware: bool) -> int:
+	var d := 2 if ren else 1
+	if not target_aware:
+		d += 1
+		style["sneak"] += 1
+	return d
+
+
+## Os Ecos enxergam a Vela? (no Zetsu, apagada, não; morta ou descansando, também não)
+func perceivable() -> bool:
+	if zetsu:
+		return false
+	return state == State.NORMAL or state == State.DASH or state == State.KNOCKBACK or state == State.ENTER or state == State.HURT
+
+
+func can_be_hit() -> bool:
+	if invuln_t > 0.0:
+		return false
+	return state == State.NORMAL or state == State.DASH or state == State.ENTER or state == State.KNOCKBACK
+
+
+# ===========================================================================
+# Golpes dos Ecos, morte e renascimento
+# ===========================================================================
+
+## Golpe de um Eco. Devolve true se pegou (fora da invencibilidade).
+func take_hit(amount: int, from: Vector2) -> bool:
+	if not can_be_hit():
+		return false
+	var dmg := amount * damage_mult()
+	vitality = maxi(vitality - dmg, 0)
+	hits_taken += 1
+	_end_ren()
+	if zetsu and not grid.overlaps_veil(body.pos, body.size):
+		_set_zetsu(false)
+	attack_t = 0.0
+	dash_t = 0.0
+	recoil_t = 0.0
+	_stop_wall_slide()
+	var dir := signf(body.center().x - from.x)
+	if dir == 0.0:
+		dir = -float(facing)
+	var fatal := vitality <= 0
+	fx.emit(&"hit", {"pos": body.center(), "dmg": dmg, "dir": dir, "fatal": fatal})
+	if fatal:
+		_die()
+		return true
+	state = State.KNOCKBACK
+	state_time = 0.0
+	vel = Vector2(dir * nen.knockback.x, nen.knockback.y)
+	facing = -int(dir)
+	invuln_t = nen.invuln_time
+	return true
+
+
+func _update_knockback(dt: float) -> void:
+	_update_ground()
+	vel.y = minf(vel.y + tuning.gravity * dt, tuning.max_fall)
+	vel.x = move_toward(vel.x, 0.0, 900.0 * dt)
+	_move(dt)
+	_post_move(dt)
+	if state == State.KNOCKBACK and state_time >= nen.knockback_time:
+		state = State.NORMAL
+		state_time = 0.0
+
+
+func _die() -> void:
+	state = State.DEAD
+	state_time = 0.0
+	deaths += 1
+	vel.x *= 0.3
+	vel.y = maxf(vel.y, 0.0)
+	_end_ren()
+	zetsu = false
+	_stop_wall_slide()
+	attack_t = 0.0
+	dash_t = 0.0
+	fx.emit(&"die", {"pos": body.center()})
+
+
+func _update_dead(dt: float) -> void:
+	_update_ground()
+	if not grounded:
+		vel.y = minf(vel.y + tuning.gravity * tuning.fall_gravity_mult * dt, tuning.max_fall)
+	vel.x = move_toward(vel.x, 0.0, 1200.0 * dt)
+	_move(dt)
+
+
+func is_dead() -> bool:
+	return state == State.DEAD
+
+
+## Onde o Eco póstumo fica: onde a Vela apagou, ou no último chão seguro se ela
+## caiu em espinhos (para dar para alcançar).
+func shade_spot() -> Vector2:
+	if grid.spike_near(body, 30.0) or grid.spike_hit(hurtbox()):
+		return safe_pos + body.size * 0.5
+	return body.center()
+
+
+## Renasce de pé num altar, com todas as gotas e a chama cheia.
+func revive(top_left: Vector2) -> void:
+	body.pos = top_left
+	safe_pos = top_left
+	vel = Vector2.ZERO
+	vitality = vitality_max
+	aura = aura_cap()
+	invuln_t = 0.0
+	zetsu = false
+	ren = false
+	recoil_t = 0.0
+	attack_t = 0.0
+	dash_t = 0.0
+	grounded = true
+	wake_len = REVIVE_WAKE_TIME
+	state = State.WAKE
+	state_time = 0.0
+	_sync_node()
+	if is_inside_tree():
+		reset_physics_interpolation()
+	fx.emit(&"revive", {"pos": body.center()})
+
+
+## Descanso no altar: gotas e chama cheias.
+func refill() -> void:
+	vitality = vitality_max
+	aura = aura_cap()
+
+
+func _stop_wall_slide() -> void:
+	if wall_sliding:
+		wall_sliding = false
+		fx.emit(&"wall_slide", {"on": false, "dir": wall_dir})
 
 
 # ===========================================================================

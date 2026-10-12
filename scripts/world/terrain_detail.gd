@@ -40,19 +40,19 @@ func _draw_ambient_occlusion() -> void:
 	var clear := Color(0, 0, 0, 0)
 	for r in grid.height:
 		for c in grid.width:
-			if grid.is_solid(c, r):
+			if grid.is_rock(c, r):
 				continue
 			var x0 := c * ts
 			var y0 := r * ts
 			# sombra embaixo do teto
-			if grid.is_solid(c, r - 1):
+			if grid.is_rock(c, r - 1):
 				draw_polygon(PackedVector2Array([Vector2(x0, y0), Vector2(x0 + ts, y0), Vector2(x0 + ts, y0 + 14), Vector2(x0, y0 + 14)]),
 					PackedColorArray([shadow, shadow, clear, clear]))
 			# sombra ao lado das paredes
-			if grid.is_solid(c - 1, r):
+			if grid.is_rock(c - 1, r):
 				draw_polygon(PackedVector2Array([Vector2(x0, y0), Vector2(x0 + 10, y0), Vector2(x0 + 10, y0 + ts), Vector2(x0, y0 + ts)]),
 					PackedColorArray([Color(0, 0, 0, 0.3), clear, clear, Color(0, 0, 0, 0.3)]))
-			if grid.is_solid(c + 1, r):
+			if grid.is_rock(c + 1, r):
 				draw_polygon(PackedVector2Array([Vector2(x0 + ts - 10, y0), Vector2(x0 + ts, y0), Vector2(x0 + ts, y0 + ts), Vector2(x0 + ts - 10, y0 + ts)]),
 					PackedColorArray([clear, Color(0, 0, 0, 0.3), Color(0, 0, 0, 0.3), clear]))
 
@@ -65,11 +65,11 @@ func _draw_tops() -> void:
 	for r in grid.height:
 		var c := 0
 		while c < grid.width:
-			if not (grid.is_solid(c, r) and not grid.is_solid(c, r - 1)):
+			if not (grid.is_rock(c, r) and not grid.is_rock(c, r - 1)):
 				c += 1
 				continue
 			var c0 := c
-			while c < grid.width and grid.is_solid(c, r) and not grid.is_solid(c, r - 1):
+			while c < grid.width and grid.is_rock(c, r) and not grid.is_rock(c, r - 1):
 				c += 1
 			var c1 := c - 1
 			var y := r * ts
@@ -118,11 +118,11 @@ func _draw_sides() -> void:
 		for dir in [-1, 1]:
 			var r := 0
 			while r < grid.height:
-				if not (grid.is_solid(c, r) and not grid.is_solid(c + dir, r)):
+				if not (grid.is_rock(c, r) and not grid.is_rock(c + dir, r)):
 					r += 1
 					continue
 				var r0 := r
-				while r < grid.height and grid.is_solid(c, r) and not grid.is_solid(c + dir, r):
+				while r < grid.height and grid.is_rock(c, r) and not grid.is_rock(c + dir, r):
 					r += 1
 				var r1 := r - 1
 				var x := c * ts + (ts - 1.2 if dir > 0 else 1.2)
@@ -151,7 +151,7 @@ func _draw_ceilings() -> void:
 	var col: Color = palette["stone_mid"]
 	for r in grid.height:
 		for c in grid.width:
-			if not (grid.is_solid(c, r) and not grid.is_solid(c, r + 1)):
+			if not (grid.is_rock(c, r) and not grid.is_rock(c, r + 1)):
 				continue
 			var y := (r + 1) * ts
 			var n := rng.randi_range(0, 3)
@@ -197,9 +197,9 @@ func _draw_one_way() -> void:
 			for ex in [x0 + 5, x1 - 9]:
 				draw_rect(Rect2(ex, y - 1, 4, 12), metal)
 			# mãos-francesas se houver parede ao lado
-			if grid.is_solid(c0 - 1, r):
+			if grid.is_rock(c0 - 1, r):
 				draw_line(Vector2(x0, y + 26), Vector2(x0 + 18, y + 10), wood.darkened(0.2), 4.0, true)
-			if grid.is_solid(c, r):
+			if grid.is_rock(c, r):
 				draw_line(Vector2(x1, y + 26), Vector2(x1 - 18, y + 10), wood.darkened(0.2), 4.0, true)
 
 

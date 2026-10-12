@@ -6,6 +6,7 @@ static var _light_tex: Texture2D
 static var _dot_tex: Texture2D
 static var _glow_tex: Texture2D
 static var _add_mat: CanvasItemMaterial
+static var _unshaded_mat: CanvasItemMaterial
 
 
 ## Gradiente radial suave para PointLight2D.
@@ -38,6 +39,7 @@ static func cleanup() -> void:
 	_dot_tex = null
 	_glow_tex = null
 	_add_mat = null
+	_unshaded_mat = null
 
 
 static func additive() -> CanvasItemMaterial:
@@ -46,6 +48,14 @@ static func additive() -> CanvasItemMaterial:
 		_add_mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 		_add_mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
 	return _add_mat
+
+
+## Mistura normal, mas sem receber luz: brilha igual no claro e no escuro (Ecos).
+static func unshaded() -> CanvasItemMaterial:
+	if _unshaded_mat == null:
+		_unshaded_mat = CanvasItemMaterial.new()
+		_unshaded_mat.light_mode = CanvasItemMaterial.LIGHT_MODE_UNSHADED
+	return _unshaded_mat
 
 
 static func _radial(size: int, offsets: PackedFloat32Array, colors: PackedColorArray) -> Texture2D:
