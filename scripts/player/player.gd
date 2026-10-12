@@ -536,7 +536,8 @@ func _resolve_attack() -> void:
 			continue
 		hit_any = true
 		var is_eco := obj is Eco
-		if is_eco:
+		var blocked: bool = is_eco and obj.last_blocked
+		if is_eco and not blocked:
 			style["strikes"] += 1
 			if shu_active():
 				style["shu"] += 1
@@ -548,7 +549,7 @@ func _resolve_attack() -> void:
 			_pogo(Vector2(body.center().x, obj.hit_rect().position.y))
 		elif is_eco:
 			if attack_dir == 0:
-				_recoil(-facing * nen.strike_recoil * (1.6 if ko_strike else 1.0))
+				_recoil(-facing * nen.strike_recoil * (1.6 if ko_strike or blocked else 1.0))
 		else:
 			fx.emit(&"strike", {"pos": hb.get_center(), "dir": attack_dir})
 		if not ko_strike:

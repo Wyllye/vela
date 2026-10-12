@@ -10,12 +10,16 @@ var palette: Dictionary
 var tablets: Array[Tablet] = []
 var altars: Array[Altar] = []
 var glyphs: Array[AuraGlyph] = []
+var bells: Array[Bell] = []
 var strikeables: Array = []
 var ecos: Array = []
 var spawn_cell := Vector2i(-1, -1)
 var ambient: CanvasModulate
 var veils: VeilView
 var shells: ShellView
+var stones: StoneView
+var gates: GateView
+var aura_layer: AuraLayer
 var _layers: Array = []
 var _bg_nodes: Array[Node] = []
 var _eco_root: Node2D
@@ -61,6 +65,16 @@ func build(rd: RoomData, background: CanvasLayer) -> void:
 	shells.setup(rd.grid, s)
 	add_child(shells)
 
+	stones = StoneView.new()
+	stones.name = "Stones"
+	stones.setup(rd.grid, s)
+	add_child(stones)
+
+	gates = GateView.new()
+	gates.name = "Gates"
+	gates.setup(rd.grid)
+	add_child(gates)
+
 	_spawn_props()
 
 	_eco_root = Node2D.new()
@@ -73,6 +87,13 @@ func build(rd: RoomData, background: CanvasLayer) -> void:
 	veils.name = "Veils"
 	veils.setup(rd.grid, s)
 	add_child(veils)
+
+	aura_layer = AuraLayer.new()
+	aura_layer.name = "AuraLayer"
+	aura_layer.setup(rd.grid)
+	add_child(aura_layer)
+	for gl in glyphs:
+		gl.layer = aura_layer
 	_add_dust(size)
 
 	_add_backdrop(self, Backdrop.Kind.FOREGROUND, 1.22, false, s)
@@ -191,15 +212,29 @@ func _spawn_props() -> void:
 			"A":
 				var al := Altar.new()
 				al.position = base
+				al.index = altars.size()
+				al.lesson = data.lesson_for_altar(al.index)
 				props.add_child(al)
 				altars.append(al)
 			"g":
 				var gl := AuraGlyph.new()
+				gl.setup(data.aura_entry(glyph_i), data.rng_seed + glyph_i * 7 + 1)
 				glyph_i += 1
-				gl.setup("GLYPH_%s_%d" % [data.id.to_upper(), glyph_i], data.rng_seed + glyph_i)
 				gl.position = Vector2((cell.x + 0.5) * TS, (cell.y + 0.5) * TS)
 				props.add_child(gl)
 				glyphs.append(gl)
+			"B":
+				var ceil_s := g.ceiling_above(cell.x, cell.y, 16)
+				var bl := Bell.new()
+				if ceil_s >= 0:
+					bl.position = Vector2((cell.x + 0.5) * TS, (ceil_s + 1) * TS)
+					bl.setup((cell.y - ceil_s - 0.5) * TS, rng.randf() * TAU)
+				else:
+					bl.position = Vector2((cell.x + 0.5) * TS, cell.y * TS - 60.0)
+					bl.setup(60.0 + TS * 0.5, 0.0)
+				props.add_child(bl)
+				bells.append(bl)
+				strikeables.append(bl)
 			"m", "x":
 				var hk := Husk.new()
 				hk.setup("sit" if ch == "m" else "fallen", 1 if cell.x < g.width * 0.5 else -1)
@@ -222,7 +257,7 @@ func _spawn_props() -> void:
 				rb.setup(palette, data.rng_seed + cell.x * 7 + cell.y)
 				rb.position = base
 				props.add_child(rb)
-			"V", "S", "M":
+			"V", "S", "M", "E":
 				pass  # Ecos: _spawn_ecos()
 			_:
 				push_warning("Marcador desconhecido '%s' em %s (%s)" % [ch, cell, data.id])
@@ -242,6 +277,8 @@ func _spawn_ecos() -> void:
 				e = Saltador.new()
 			"M":
 				e = Mariposa.new()
+			"E":
+				e = Penitente.new()
 		if e == null:
 			continue
 		e.setup(data.grid, m["cell"])
@@ -287,6 +324,30 @@ func tablet_near(p: Vector2) -> Tablet:
 		if absf(d.x) < 64.0 and absf(d.y) < 80.0 and d.length() < best_d:
 			best = t
 			best_d = d.length()
+	return best
+
+
+## O sino tocou: os portões sobem (o JSON da sala não muda; o Game guarda).
+func open_gates(animated: bool) -> Array[Vector2i]:
+	var cells := data.grid.open_gates()
+	gates.open(animated)
+	return cells
+
+
+## Escrita em aura legível perto da Vela (revelada pelo Gyo ou pelo En), ou null.
+func glyph_near(p: Vector2) -> AuraGlyph:
+	var best: AuraGlyph = null
+	var best_d := INF
+	for gl in glyphs:
+		if gl.reveal < 0.5 or gl.text_key == "":
+			continue
+		var r := Rect2(gl.position - gl.size * 0.5, gl.size).grow(64.0)
+		if not r.has_point(p):
+			continue
+		var d := gl.position.distance_to(p)
+		if d < best_d:
+			best = gl
+			best_d = d
 	return best
 
 

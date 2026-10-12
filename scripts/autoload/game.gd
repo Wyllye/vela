@@ -11,24 +11,54 @@ var music_on := true
 ## Fim do hit-stop atual, em microssegundos do relógio real.
 var _hitstop_end_us := 0
 
-## Sala do último altar em que a Vela descansou (onde ela renasce).
+## Sala do último altar em que a Vela descansou (onde ela renasce) e qual
+## altar dela (ordem de leitura do mapa).
 var respawn_room := "poco_fundo"
+var respawn_altar := 0
 ## Eco póstumo da Vela: {"room": id, "pos": Vector2}; vazio se não há nenhum.
 var shade: Dictionary = {}
-## Cascas de aura já quebradas: id da sala -> Array[Vector2i].
-var broken_shells: Dictionary = {}
+## Células abertas para sempre (cascas rachadas, muros de pedra derrubados):
+## id da sala -> Array[Vector2i].
+var opened_cells: Dictionary = {}
+## Marcas do mundo: "sino_<sala>" (o sino tocou e os portões abriram)...
+var flags: Dictionary = {}
+## Escritas em aura já lidas (chave do texto -> true) e salas mapeadas pelo En.
+var aura_read: Dictionary = {}
+var mapped_rooms: Dictionary = {}
+var _aura_total := -1
 
 
 func reset_world() -> void:
 	respawn_room = "poco_fundo"
+	respawn_altar = 0
 	shade = {}
-	broken_shells = {}
+	opened_cells = {}
+	flags = {}
+	aura_read = {}
+	mapped_rooms = {}
 
 
-func add_broken_shells(room_id: String, cells: Array) -> void:
-	var list: Array = broken_shells.get(room_id, [])
+func add_opened(room_id: String, cells: Array) -> void:
+	var list: Array = opened_cells.get(room_id, [])
 	list.append_array(cells)
-	broken_shells[room_id] = list
+	opened_cells[room_id] = list
+
+
+## Quantas escritas em aura existem no jogo todo (marcadores `g` das salas).
+func aura_total() -> int:
+	if _aura_total >= 0:
+		return _aura_total
+	_aura_total = 0
+	var dir := DirAccess.open("res://levels")
+	if dir == null:
+		return 0
+	for f in dir.get_files():
+		if not f.ends_with(".json"):
+			continue
+		var rd := RoomData.load_room(f.get_basename())
+		if rd:
+			_aura_total += rd.markers_of("g").size()
+	return _aura_total
 
 
 func _ready() -> void:

@@ -10,12 +10,20 @@ var music := ""
 var ambience := ""
 var palette := "poco"
 var rng_seed := 0
-## O que o altar da sala ensina ao meditar: "ten", "zetsu", "ren", "end" (fim da etapa) ou "".
+## O que o altar da sala ensina ao meditar: uma lição do Nen ("ten", "zetsu",
+## "ren", "gyo", "shu", "ken", "ko", "en"), "end" (fim da etapa) ou "".
 var altar_lesson := ""
+## Uma lição por altar, na ordem de leitura do mapa (quando a sala tem mais de um).
+var altar_lessons: Array[String] = []
 ## "1" -> {"to": "galeria", "door": "1"}
 var doors: Dictionary = {}
 ## Chaves de tradução das estelas, na ordem de leitura do mapa.
 var texts: Array[String] = []
+## Escritas em aura (marcadores `g`, na ordem de leitura): {"text": chave,
+## "author": "monge"|"abadessa", "w": tiles, "h": tiles}.
+var aura: Array[Dictionary] = []
+## Murais no fundo: {"id": "juramento", "x", "y" (tiles), "anchor_x", "anchor_y"}.
+var murals: Array = []
 var rows := PackedStringArray()
 var light_shafts: Array = []
 var grid: LevelGrid
@@ -48,14 +56,38 @@ static func from_dict(d: Dictionary) -> RoomData:
 	rd.palette = str(d.get("palette", "poco"))
 	rd.rng_seed = int(d.get("seed", 0))
 	rd.altar_lesson = str(d.get("altar_lesson", ""))
+	for l in d.get("altar_lessons", []):
+		rd.altar_lessons.append(str(l))
 	rd.doors = d.get("doors", {})
 	for t in d.get("texts", []):
 		rd.texts.append(str(t))
+	for a in d.get("aura", []):
+		if typeof(a) == TYPE_DICTIONARY:
+			var e: Dictionary = a.duplicate()
+			e["text"] = str(e.get("text", ""))
+			rd.aura.append(e)
+		else:
+			rd.aura.append({"text": str(a)})
+	rd.murals = d.get("murals", [])
 	rd.light_shafts = d.get("light_shafts", [])
 	for line in d.get("map", []):
 		rd.rows.append(str(line))
 	rd.grid = LevelGrid.from_rows(rd.rows)
 	return rd
+
+
+## Lição do altar `i` (ordem de leitura do mapa).
+func lesson_for_altar(i: int) -> String:
+	if i < altar_lessons.size():
+		return altar_lessons[i]
+	return altar_lesson
+
+
+## Escrita em aura do marcador `g` número `i` (vazio se faltar no JSON).
+func aura_entry(i: int) -> Dictionary:
+	if i < aura.size():
+		return aura[i]
+	return {"text": ""}
 
 
 ## Marcadores de um tipo, em ordem de leitura (linha, depois coluna).

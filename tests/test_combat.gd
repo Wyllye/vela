@@ -228,3 +228,120 @@ func test_spikes_cost_a_drop_and_can_kill() -> void:
 		if p.is_dead():
 			break
 	check(p.is_dead(), "com uma gota, o espinho apaga a Vela")
+
+
+# ---------------------------------------------------------------- Penitente
+
+func _penitente_facing_vela(p: Player, cell: Vector2i) -> Penitente:
+	var e := _eco(Penitente.new(), p, cell) as Penitente
+	e.facing = -1 if p.body.center().x < e.body.center().x else 1
+	return e
+
+
+func test_penitente_blocks_from_the_front_but_not_from_behind() -> void:
+	var p := make_player(HALL, Vector2i(10, 10))
+	var e := _penitente_facing_vela(p, Vector2i(12, 10))
+	p.facing = 1
+	e.aware = true
+	e.memory = 99.0
+	tap(p, &"attack")
+	run(p, 3)
+	check(e.hp == 5, "de frente, o cajado bate na laje (hp %d)" % e.hp)
+	check(e.has_slab, "a laje aguenta o golpe comum")
+	e.facing = 1
+	run(p, 25)
+	p.body.pos.x = 10 * 32.0 + 5.0
+	tap(p, &"attack")
+	run(p, 3)
+	check(e.hp < 5, "pelas costas, o golpe passa (hp %d)" % e.hp)
+
+
+func test_penitente_slam_hurts_and_ken_turns_it_back() -> void:
+	var p := make_player(HALL, Vector2i(10, 10))
+	var e := _penitente_facing_vela(p, Vector2i(13, 10))
+	p.facing = 1
+	var raised := false
+	for i in 120:
+		_tick(p, [e], 1)
+		if e.s == Penitente.S.RAISE:
+			raised = true
+		if p.vitality < 5:
+			break
+	check(raised, "ele vê a chama, chega perto e ergue a laje")
+	check(p.vitality == 3, "a pancada da laje tira duas gotas (ficou %d)" % p.vitality)
+	# de novo, agora abrindo o Ren no instante da pancada (Ken)
+	var p2 := make_player(HALL, Vector2i(10, 10))
+	var e2 := _penitente_facing_vela(p2, Vector2i(13, 10))
+	p2.facing = 1
+	p2.aura = 100.0
+	var parried := false
+	for i in 120:
+		var slam_next := e2.s == Penitente.S.RAISE and e2.s_t >= e2._raise_time() - 2.0 * DT
+		inp(p2).set_held(&"ren", slam_next or p2.ren)
+		_tick(p2, [e2], 1)
+		if e2.s == Penitente.S.STAGGER:
+			parried = true
+			break
+	check(parried, "Ken: a pancada volta e ele cambaleia")
+	check(p2.vitality == 5, "sem perder gota (ficou %d)" % p2.vitality)
+	check(e2.hp == 3, "a explosão do Ren e a pancada devolvida ferem quem bateu (hp %d)" % e2.hp)
+	inp(p2).set_held(&"ren", false)
+	inp(p2).set_held(&"move_right", true)
+	_tick(p2, [e2], 14)
+	inp(p2).set_held(&"move_right", false)
+	check(e2.s == Penitente.S.STAGGER, "ainda cambaleando")
+	var hp_before := e2.hp
+	tap(p2, &"attack")
+	_tick(p2, [e2], 3)
+	check(e2.hp < hp_before, "cambaleando, a laje caída não protege (hp %d)" % e2.hp)
+
+
+func test_shu_cracks_the_slab_and_ko_breaks_it() -> void:
+	var p := make_player(HALL, Vector2i(10, 10))
+	var e := _penitente_facing_vela(p, Vector2i(12, 10))
+	e.aware = true
+	e.memory = 99.0
+	p.facing = 1
+	p.aura = 100.0
+	inp(p).set_held(&"ren", true)
+	run(p, 2)
+	tap(p, &"attack")
+	run(p, 20)
+	check(e.has_slab and e.slab_hp == 1, "com Shu, o golpe racha a laje")
+	inp(p).set_held(&"ren", true)
+	tap(p, &"attack")
+	run(p, 3)
+	check(not e.has_slab, "o segundo golpe com Shu quebra a laje")
+	var p2 := make_player(HALL, Vector2i(10, 10))
+	var e2 := _penitente_facing_vela(p2, Vector2i(12, 10))
+	e2.aware = true
+	e2.memory = 99.0
+	p2.facing = 1
+	p2.aura = 100.0
+	inp(p2).set_held(&"attack", true)
+	run(p2, 75)
+	inp(p2).set_held(&"attack", false)
+	run(p2, 3)
+	check(not e2.has_slab, "o Ko parte a laje de uma vez")
+	check(not e2.alive() or e2.hp < 0 or e2.hp <= 5 - 7, "e passa com tudo (hp %d)" % e2.hp)
+
+
+func test_bell_only_sings_with_ko() -> void:
+	var p := make_player(HALL, Vector2i(10, 10))
+	var b := Bell.new()
+	b.setup(60.0, 0.0)
+	b.position = Vector2(12.5 * 32.0, 10 * 32.0 - 70.0)
+	_nodes.append(b)
+	p.strikeables = [b]
+	p.facing = 1
+	var tolls := []
+	b.rung.connect(func(strong): tolls.append(strong))
+	tap(p, &"attack")
+	run(p, 20)
+	check(tolls == [false], "o golpe comum só arranca um gemido (%s)" % [tolls])
+	p.aura = 100.0
+	inp(p).set_held(&"attack", true)
+	run(p, 75)
+	inp(p).set_held(&"attack", false)
+	run(p, 3)
+	check(tolls.count(true) == 1 and tolls.back() == true, "com o Ko o sino canta (%s)" % [tolls])

@@ -10,6 +10,9 @@ const GOLD := Color("c8a96e")
 
 var near := false
 var glow := 0.0
+## Ordem do altar na sala e a lição que ele dá ao meditar ("" = só descanso).
+var index := 0
+var lesson := ""
 var _emblem: Node2D
 
 

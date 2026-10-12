@@ -160,7 +160,7 @@ func _load_room(id: String) -> void:
 		room.free_room()
 		room = null
 	var rd := RoomData.load_room(id)
-	for cell: Vector2i in Game.broken_shells.get(id, []):
+	for cell: Vector2i in Game.opened_cells.get(id, []):
 		rd.grid.set_cell(cell.x, cell.y, LevelGrid.Tile.EMPTY)
 	room = Room.new()
 	room_root.add_child(room)
@@ -664,7 +664,7 @@ func _on_player_fx(ev: StringName, d: Dictionary) -> void:
 func _shatter_shells(cells: Array) -> void:
 	if cells.is_empty() or room == null:
 		return
-	Game.add_broken_shells(room.data.id, cells)
+	Game.add_opened(room.data.id, cells)
 	room.shells.refresh()
 	AudioManager.play_sfx("shell_break", -1.0, 0.03)
 	camera.add_trauma(0.3)

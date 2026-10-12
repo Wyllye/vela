@@ -39,6 +39,8 @@ var sight := 280.0
 var memory_time := 1.6
 var flash := 0.0
 var stun_t := 0.0
+## O último golpe bateu num escudo (o cajado volta mais forte e não rende aura).
+var last_blocked := false
 var dying_t := -1.0
 var dead := false
 var anim_t := 0.0
@@ -168,6 +170,7 @@ func contact_rect() -> Rect2:
 func on_struck(player: Player, dir: int, _is_pogo: bool) -> bool:
 	if not alive():
 		return false
+	last_blocked = false
 	var was_aware := aware
 	var dmg := player.strike_damage(was_aware)
 	hp -= dmg
