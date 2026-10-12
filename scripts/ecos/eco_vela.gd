@@ -104,6 +104,11 @@ func _on_hit(player: Player, dir: int) -> void:
 	s_t = RECOVER_TIME * 0.5
 
 
+func _on_parried(_player: Player) -> void:
+	_go(S.RECOVER)
+	hunt_t = 0.0
+
+
 func _update_stunned(dt: float) -> void:
 	vel = vel.move_toward(Vector2.ZERO, 800.0 * dt)
 	_move_body(dt)

@@ -225,6 +225,42 @@ func on_hit_player(_player: Player) -> void:
 	pass
 
 
+## Ken: o golpe deste Eco foi aparado. Ele recua atordoado e a pancada volta
+## contra ele.
+func on_parried(player: Player) -> void:
+	if not alive():
+		return
+	aware = true
+	memory = memory_time
+	flash = 1.0
+	hp -= 1
+	var dir := signf(body.center().x - player.body.center().x)
+	if dir == 0.0:
+		dir = float(player.facing)
+	vel = Vector2(dir * 380.0, -200.0)
+	stun_t = player.nen.ken_stun
+	_on_parried(player)
+	fx.emit(&"eco_hit", {"pos": body.center(), "dmg": 1, "sneak": false, "kind": kind, "dir": 0, "facing": int(dir), "ren": true, "parry": true})
+	if hp <= 0:
+		_start_dying(player)
+
+
+## Ajuste de cada tipo ao ser aparado (o Vigia para a investida etc.).
+func _on_parried(_player: Player) -> void:
+	pass
+
+
+## En: a aura da Vela se espalhou pela sala. Quem está perto sente.
+func on_en(player: Player, center: Vector2, radius: float) -> void:
+	if not alive() or body.center().distance_to(center) > radius:
+		return
+	if not aware:
+		fx.emit(&"eco_notice", {"pos": eye(), "kind": kind})
+	aware = true
+	memory = memory_time
+	_on_spotted(player)
+
+
 # ---------------------------------------------------------------------------
 # Movimento
 # ---------------------------------------------------------------------------
@@ -265,7 +301,7 @@ func _floor_ahead(dir: int) -> bool:
 	var x := body.pos.x + (body.size.x + 3.0 if dir > 0 else -3.0)
 	var c := floori(x / ts)
 	var r := floori((body.pos.y + body.size.y + 2.0) / ts)
-	return grid.is_solid(c, r) or grid.get_cell(c, r) == LevelGrid.Tile.ONE_WAY
+	return grid.is_solid(c, r) or grid.is_one_way(c, r)
 
 
 func _wall_ahead(dir: int) -> bool:
@@ -299,9 +335,21 @@ static func update_all(ecos: Array, dt: float, player: Player) -> void:
 	var hb := player.hurtbox()
 	for e in ecos:
 		if is_instance_valid(e) and e.harmful() and e.contact_rect().intersects(hb):
-			if player.take_hit(e.contact_damage, e.body.center()):
+			if player.try_parry(e.body.center()):
+				e.on_parried(player)
+			elif player.take_hit(e.contact_damage, e.body.center()):
 				e.on_hit_player(player)
 			return
+	# golpes com alcance próprio (a pancada do Penitente)
+	for e in ecos:
+		if is_instance_valid(e) and e.alive() and e.has_method("strike_rect"):
+			var r: Rect2 = e.strike_rect()
+			if r.size.x > 0.0 and r.intersects(hb):
+				if player.try_parry(e.body.center()):
+					e.on_parried(player)
+				elif player.take_hit(e.strike_damage, e.body.center()):
+					e.on_hit_player(player)
+				return
 
 
 # ---------------------------------------------------------------------------

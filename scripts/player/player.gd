@@ -1,7 +1,9 @@
 class_name Player
 extends Node2D
 ## A Vela: movimento com física própria em grade (LevelGrid), Vitalidade
-## (gotas de cera), Aura (a chama) e os fundamentos do Nen: Ten, Zetsu e Ren.
+## (gotas de cera), Aura (a chama), os fundamentos do Nen (Ten, Zetsu, Ren) e
+## as técnicas avançadas: Gyo (segurar), En (Gyo + ↓ no chão), Shu (golpe com
+## o Ren aceso), Ko (segurar o golpe) e Ken (abrir o Ren na hora do impacto).
 ##
 ## Toda a lógica roda em `step(dt)`, sem depender da árvore de cenas — os testes
 ## chamam `step()` direto com um ScriptedInput. Efeitos (som, partículas,
@@ -40,7 +42,7 @@ var abilities := {"dash": true, "wall": true, "air_jump": true, "pogo": true}
 # --- Nen e vida ---
 ## Técnicas aprendidas. O padrão (tudo) serve aos testes e ao --room; um jogo
 ## novo começa sem nenhuma (main.gd).
-var learned := {"ten": true, "zetsu": true, "ren": true}
+var learned := {"ten": true, "zetsu": true, "ren": true, "gyo": true, "shu": true, "ken": true, "ko": true, "en": true}
 var vitality := 5
 var vitality_max := 5
 var aura := 100.0
@@ -48,6 +50,21 @@ var aura := 100.0
 var aura_max := 100.0
 var zetsu := false
 var ren := false
+## Gyo: aura nos olhos (revela a escrita em aura e o que o In esconde).
+var gyo := false
+## O Gyo apagou por falta de aura: só reacende soltando e apertando de novo.
+var gyo_spent := false
+## En: tempo ajoelhada concentrando (> 0 enquanto ajoelha) e se já espalhou.
+var en_t := 0.0
+var en_fired := false
+## Ko: tempo segurando o golpe depois do golpe normal, carga, pronto, golpe ativo.
+var ko_hold_t := 0.0
+var ko_charge := 0.0
+var ko_ready := false
+var ko_strike := false
+var ko_damage := 0
+## Janela do Ken: logo depois de abrir o Ren, o golpe que chegar é aparado.
+var ken_t := 0.0
 var invuln_t := 0.0
 var regen_delay_t := 0.0
 var recoil_t := 0.0
@@ -56,7 +73,8 @@ var wake_len := WAKE_TIME
 var deaths := 0
 var hits_taken := 0
 ## Como a Vela joga (a Adivinhação da Água, na Etapa 4, lê isto).
-var style := {"ren": 0, "zetsu_time": 0.0, "strikes": 0, "sneak": 0, "melts": 0}
+var style := {"ren": 0, "zetsu_time": 0.0, "strikes": 0, "sneak": 0, "melts": 0,
+	"gyo_time": 0.0, "en": 0, "ko": 0, "ken": 0, "shu": 0}
 
 # --- chão e pulo ---
 var grounded := false
@@ -142,6 +160,11 @@ func step(dt: float) -> void:
 	input.poll()
 	state_time += dt
 	_tick_timers(dt)
+	if (ko_charge > 0.0 or ko_hold_t > 0.0) and state != State.NORMAL:
+		_cancel_ko()
+	if en_t > 0.0 and state != State.NORMAL:
+		en_t = 0.0
+		en_fired = false
 	if state != State.DEAD:
 		_update_nen(dt)
 	# véus só se abrem para a Vela, e só durante o Zetsu
@@ -183,6 +206,9 @@ func _tick_timers(dt: float) -> void:
 	drop_t = maxf(drop_t - dt, 0.0)
 	invuln_t = maxf(invuln_t - dt, 0.0)
 	recoil_t = maxf(recoil_t - dt, 0.0)
+	ken_t = maxf(ken_t - dt, 0.0)
+	if attack_t <= 0.0:
+		ko_strike = false
 	if not grounded:
 		coyote_t = maxf(coyote_t - dt, 0.0)
 		air_time += dt
@@ -210,6 +236,7 @@ func _update_normal(dt: float) -> void:
 	_read_buffers()
 	_update_ground()
 	_update_wall(mx)
+	_update_en(mx, my, dt)
 	_update_look(mx, my, dt)
 
 	# --- horizontal ---
@@ -267,9 +294,10 @@ func _update_normal(dt: float) -> void:
 	else:
 		vel.y = minf(vel.y, t.fast_fall if (my > 0 and not grounded) else t.max_fall)
 
-	# --- golpe ---
-	if attack_buffer_t > 0.0 and attack_cd_t <= 0.0:
+	# --- golpe (e o Ko, segurando o golpe) ---
+	if attack_buffer_t > 0.0 and attack_cd_t <= 0.0 and ko_charge <= 0.0:
 		_start_attack(my)
+	_update_ko(dt)
 
 	# --- direção ---
 	if wall_sliding:
@@ -321,6 +349,10 @@ func _update_wall(mx: int) -> void:
 
 
 func _update_look(mx: int, my: int, dt: float) -> void:
+	if en_t > 0.0:
+		look_t = 0.0
+		look = 0
+		return
 	if grounded and mx == 0 and my != 0 and absf(vel.x) < 5.0:
 		look_t += dt
 		if look_t > LOOK_DELAY:
@@ -375,6 +407,7 @@ func _drop_through() -> void:
 # ===========================================================================
 
 func _start_dash(mx: int) -> void:
+	_cancel_ko()
 	dash_dir = mx if mx != 0 else facing
 	if wall_sliding:
 		dash_dir = -wall_dir
@@ -467,40 +500,72 @@ func attack_active() -> bool:
 
 func attack_rect() -> Rect2:
 	var c := body.center()
+	if ko_strike:
+		# Ko: toda a aura num ponto — um golpe largo para a frente
+		var kw := 104.0
+		var kx := c.x + 2.0 if facing > 0 else c.x - 2.0 - kw
+		return Rect2(kx, body.pos.y - 14.0, kw, 64.0)
+	var reach := nen.shu_reach if shu_active() else 1.0
 	match attack_dir:
 		-1:
-			return Rect2(c.x - 24.0, body.pos.y - 44.0, 48.0, 50.0)
+			var hu := 50.0 * reach
+			return Rect2(c.x - 24.0, body.pos.y + 6.0 - hu, 48.0, hu)
 		1:
-			return Rect2(c.x - 22.0, body.pos.y + body.size.y - 6.0, 44.0, 50.0)
-	var w := 50.0
+			return Rect2(c.x - 22.0, body.pos.y + body.size.y - 6.0, 44.0, 50.0 * reach)
+	var w := 50.0 * reach
 	var x := c.x + 4.0 if facing > 0 else c.x - 4.0 - w
 	return Rect2(x, body.pos.y + 2.0, w, 34.0)
+
+
+## Shu: com o Ren aceso, a aura corre pelo cajado (alcança mais e parte pedra).
+func shu_active() -> bool:
+	return ren and learned.get("shu", false)
 
 
 func _resolve_attack() -> void:
 	if attack_resolved or not attack_active():
 		return
 	var hb := attack_rect()
-	# Ecos e objetos (lanternas etc.)
+	# Ecos e objetos (lanternas, sino...): o golpe normal acerta um; o Ko, todos
+	var hit_any := false
 	for obj in strikeables:
-		if is_instance_valid(obj) and obj.hit_rect().intersects(hb):
-			var pogo: bool = attack_dir == 1 and abilities["pogo"]
-			if obj.on_struck(self, attack_dir, pogo):
-				attack_resolved = true
-				var is_eco := obj is Eco
-				if is_eco:
-					style["strikes"] += 1
-					_gain_aura(nen.strike_gain)
-				elif pogo:
-					_gain_aura(nen.pogo_gain)
-				if pogo:
-					_pogo(Vector2(body.center().x, obj.hit_rect().position.y))
-				elif is_eco:
-					if attack_dir == 0:
-						_recoil(-facing * nen.strike_recoil)
-				else:
-					fx.emit(&"strike", {"pos": hb.get_center(), "dir": attack_dir})
-				return
+		if not is_instance_valid(obj) or not obj.hit_rect().intersects(hb):
+			continue
+		var pogo: bool = attack_dir == 1 and abilities["pogo"]
+		if not obj.on_struck(self, attack_dir, pogo):
+			continue
+		hit_any = true
+		var is_eco := obj is Eco
+		if is_eco:
+			style["strikes"] += 1
+			if shu_active():
+				style["shu"] += 1
+			if not ko_strike:
+				_gain_aura(nen.strike_gain)
+		elif pogo:
+			_gain_aura(nen.pogo_gain)
+		if pogo:
+			_pogo(Vector2(body.center().x, obj.hit_rect().position.y))
+		elif is_eco:
+			if attack_dir == 0:
+				_recoil(-facing * nen.strike_recoil * (1.6 if ko_strike else 1.0))
+		else:
+			fx.emit(&"strike", {"pos": hb.get_center(), "dir": attack_dir})
+		if not ko_strike:
+			break
+	if hit_any and not ko_strike:
+		attack_resolved = true
+		return
+	# pedra solta: o Shu e o Ko derrubam o muro inteiro
+	if shu_active() or ko_strike:
+		var broken := grid.break_stone(hb)
+		if not broken.is_empty():
+			attack_resolved = true
+			fx.emit(&"stone_break", {"cells": broken, "pos": hb.get_center(), "dir": attack_dir})
+			return
+	if hit_any:
+		attack_resolved = true
+		return
 	# espinhos: pogo
 	if attack_dir == 1 and abilities["pogo"] and grid.spike_in(hb):
 		attack_resolved = true
@@ -515,8 +580,12 @@ func _resolve_attack() -> void:
 		var tip := Vector2(hb.end.x - 4.0 if facing > 0 else hb.position.x + 4.0, hb.get_center().y)
 		if attack_dir == -1:
 			tip = Vector2(hb.get_center().x, hb.position.y + 6.0)
-		var on_shell := grid.overlaps_tile(hb.position, hb.size, LevelGrid.Tile.SHELL)
-		fx.emit(&"shell_ting" if on_shell else &"wall_hit", {"pos": tip, "dir": attack_dir})
+		var ev := &"wall_hit"
+		if grid.overlaps_tile(hb.position, hb.size, LevelGrid.Tile.SHELL):
+			ev = &"shell_ting"
+		elif grid.overlaps_tile(hb.position, hb.size, LevelGrid.Tile.STONE):
+			ev = &"stone_ting"
+		fx.emit(ev, {"pos": tip, "dir": attack_dir})
 
 
 func _recoil(vx: float) -> void:
@@ -618,6 +687,7 @@ func _hurt() -> void:
 	var dmg := 0 if state == State.KNOCKBACK else damage_mult()
 	vitality = maxi(vitality - dmg, 0)
 	hurt_count += 1
+	_cancel_ko()
 	_end_ren()
 	if zetsu:
 		_set_zetsu(false)
@@ -768,24 +838,44 @@ func _update_nen(dt: float) -> void:
 		_set_zetsu(want_zetsu)
 	if zetsu:
 		style["zetsu_time"] += dt
+	# Gyo: aura nos olhos (nunca junto do Zetsu: com os nós fechados não há o que ver)
+	if not input.held(&"gyo"):
+		gyo_spent = false
+	var want_gyo: bool = free and learned.get("gyo", false) and input.held(&"gyo") and not zetsu \
+		and not gyo_spent and (aura > 0.0 if gyo else aura >= 4.0)
+	if want_gyo != gyo:
+		if gyo and aura <= 0.0:
+			gyo_spent = true
+		_set_gyo(want_gyo)
+	if gyo:
+		style["gyo_time"] += dt
 	# Ren: apertar explode a aura, segurar mantém aberto
 	if ren and (not input.held(&"ren") or not free or zetsu or aura <= 0.0):
 		_end_ren()
 	elif not ren and free and not zetsu and learned["ren"] and input.pressed(&"ren"):
+		_cancel_ko()
 		_start_ren()
-	# aura
+	# aura: o Ren e o Gyo gastam; concentrando o Ko ou o En, ela não volta
 	var cap := aura_cap()
+	var regen := true
 	if ren:
 		aura -= nen.ren_drain * dt
-	elif regen_delay_t > 0.0:
-		regen_delay_t = maxf(regen_delay_t - dt, 0.0)
-	elif zetsu:
-		aura += nen.zetsu_regen * dt
-	elif state == State.NORMAL or state == State.DASH or state == State.ENTER:
-		var rate := nen.regen_air
-		if grounded:
-			rate = nen.regen_still if absf(vel.x) < 25.0 else nen.regen_moving
-		aura += rate * dt
+		regen = false
+	if gyo:
+		aura -= nen.gyo_drain * dt
+		regen = false
+	if ko_charge > 0.0 or en_t > 0.0:
+		regen = false
+	if regen:
+		if regen_delay_t > 0.0:
+			regen_delay_t = maxf(regen_delay_t - dt, 0.0)
+		elif zetsu:
+			aura += nen.zetsu_regen * dt
+		elif state == State.NORMAL or state == State.DASH or state == State.ENTER:
+			var rate := nen.regen_air
+			if grounded:
+				rate = nen.regen_still if absf(vel.x) < 25.0 else nen.regen_moving
+			aura += rate * dt
 	if not learned["ten"]:
 		aura -= nen.leak_rate * dt
 	aura = clampf(aura, 0.0, cap)
@@ -837,7 +927,15 @@ func _set_zetsu(on: bool) -> void:
 	zetsu = on
 	if on:
 		_end_ren()
+		_cancel_ko()
+		if gyo:
+			_set_gyo(false)
 	fx.emit(&"zetsu", {"on": on, "pos": body.center()})
+
+
+func _set_gyo(on: bool) -> void:
+	gyo = on
+	fx.emit(&"gyo", {"on": on, "pos": body.center(), "empty": aura <= 0.0})
 
 
 func _start_ren() -> void:
@@ -848,6 +946,8 @@ func _start_ren() -> void:
 	regen_delay_t = nen.regen_delay
 	ren = true
 	style["ren"] += 1
+	if learned.get("ken", false):
+		ken_t = nen.ken_window
 	var c := body.center()
 	var broken := grid.break_shells(c, nen.ren_burst_radius)
 	for obj in strikeables:
@@ -862,18 +962,141 @@ func _end_ren() -> void:
 		fx.emit(&"ren_end", {"pos": body.center()})
 
 
-## Dano recebido: dobra sem Ten (a aura vaza) e no Zetsu (a aura fica fechada).
+## Dano recebido: dobra sem Ten (a aura vaza), no Zetsu (a aura fica fechada)
+## e concentrando o Ko (a aura toda está no cajado).
 func damage_mult() -> int:
-	return 2 if (zetsu or not learned["ten"]) else 1
+	return 2 if (zetsu or not learned["ten"] or ko_charge > 0.0) else 1
 
 
-## Dano do golpe do cajado: o Ren dobra; acertar um Eco desatento soma um.
+## Dano do golpe do cajado: o Ren dobra, o Ko depende da aura gasta; acertar um
+## Eco desatento soma um.
 func strike_damage(target_aware: bool) -> int:
-	var d := 2 if ren else 1
+	var d := ko_damage if ko_strike else (2 if ren else 1)
 	if not target_aware:
 		d += 1
 		style["sneak"] += 1
 	return d
+
+
+# ===========================================================================
+# En: ajoelhar com o Gyo aceso e espalhar a aura pela sala
+# ===========================================================================
+
+func _update_en(mx: int, my: int, dt: float) -> void:
+	var kneel: bool = gyo and learned.get("en", false) and grounded and my > 0 and mx == 0 \
+		and attack_t <= 0.0 and ko_charge <= 0.0 and not wall_sliding
+	if not kneel:
+		en_t = 0.0
+		en_fired = false
+		return
+	if en_t <= 0.0:
+		fx.emit(&"en_kneel", {"pos": body.feet()})
+	en_t += dt
+	if en_t >= nen.en_kneel_time and not en_fired:
+		en_fired = true
+		if aura >= nen.en_cost:
+			_fire_en()
+		else:
+			fx.emit(&"fizzle", {"pos": body.center()})
+
+
+func _fire_en() -> void:
+	_spend(nen.en_cost)
+	style["en"] += 1
+	var c := body.center()
+	for obj in strikeables:
+		if is_instance_valid(obj) and obj.has_method("on_en"):
+			obj.on_en(self, c, nen.en_alert_radius)
+	fx.emit(&"en", {"pos": c, "speed": nen.en_speed})
+
+
+func kneeling() -> bool:
+	return en_t > 0.0
+
+
+# ===========================================================================
+# Ko: segurar o golpe concentra toda a aura num ponto
+# ===========================================================================
+
+func _update_ko(dt: float) -> void:
+	if ko_charge > 0.0:
+		if not input.held(&"attack"):
+			if ko_ready:
+				_ko_release()
+			else:
+				_cancel_ko()
+			return
+		ko_charge += dt
+		if not ko_ready and ko_charge >= nen.ko_charge_time:
+			ko_ready = true
+			fx.emit(&"ko_ready", {"pos": body.center()})
+		return
+	if not (learned.get("ko", false) and input.held(&"attack") and attack_t <= 0.0 and not ren and not zetsu):
+		ko_hold_t = 0.0
+		return
+	var before := ko_hold_t
+	ko_hold_t += dt
+	if before < nen.ko_hold_delay and ko_hold_t >= nen.ko_hold_delay:
+		if aura >= nen.ko_min_aura:
+			ko_charge = 0.0001
+			ko_ready = false
+			fx.emit(&"ko_charge", {"pos": body.center()})
+		else:
+			fx.emit(&"fizzle", {"pos": body.center()})
+
+
+func _ko_release() -> void:
+	var spent := aura
+	aura = 0.0
+	regen_delay_t = nen.regen_delay * 2.0
+	ko_damage = nen.ko_base_damage + int(spent / nen.ko_aura_per_damage)
+	ko_charge = 0.0
+	ko_ready = false
+	ko_hold_t = 0.0
+	ko_strike = true
+	attack_dir = 0
+	attack_t = tuning.attack_time
+	attack_cd_t = tuning.attack_cooldown
+	attack_resolved = false
+	style["ko"] += 1
+	fx.emit(&"ko", {"pos": body.center(), "dir": facing, "spent": spent, "damage": ko_damage})
+
+
+func _cancel_ko() -> void:
+	var was := ko_charge > 0.0
+	ko_charge = 0.0
+	ko_ready = false
+	ko_hold_t = 0.0
+	if was:
+		fx.emit(&"ko_cancel", {"pos": body.center()})
+
+
+func ko_charging() -> bool:
+	return ko_charge > 0.0
+
+
+# ===========================================================================
+# Ken: o Ren aberto na hora do golpe vira defesa total por um instante
+# ===========================================================================
+
+func ken_active() -> bool:
+	return ken_t > 0.0 and (state == State.NORMAL or state == State.DASH or state == State.ENTER or state == State.KNOCKBACK)
+
+
+## Um golpe de Eco chegou na janela do Ken: aparado. Devolve true se aparou
+## (quem chama cuida do Eco: on_parried).
+func try_parry(from: Vector2) -> bool:
+	if not ken_active():
+		return false
+	_gain_aura(nen.ken_refund)
+	invuln_t = maxf(invuln_t, 0.35)
+	style["ken"] += 1
+	var c := body.center()
+	var dir := signf(from.x - c.x)
+	if dir == 0.0:
+		dir = float(facing)
+	fx.emit(&"ken_parry", {"pos": c.lerp(from, 0.45), "dir": dir})
+	return true
 
 
 ## Os Ecos enxergam a Vela? (no Zetsu, apagada, não; morta ou descansando, também não)
@@ -900,6 +1123,7 @@ func take_hit(amount: int, from: Vector2) -> bool:
 	var dmg := amount * damage_mult()
 	vitality = maxi(vitality - dmg, 0)
 	hits_taken += 1
+	_cancel_ko()
 	_end_ren()
 	if zetsu and not grid.overlaps_veil(body.pos, body.size):
 		_set_zetsu(false)
@@ -941,6 +1165,11 @@ func _die() -> void:
 	vel.x *= 0.3
 	vel.y = maxf(vel.y, 0.0)
 	_end_ren()
+	_cancel_ko()
+	if gyo:
+		_set_gyo(false)
+	ken_t = 0.0
+	en_t = 0.0
 	zetsu = false
 	_stop_wall_slide()
 	attack_t = 0.0
@@ -978,6 +1207,10 @@ func revive(top_left: Vector2) -> void:
 	invuln_t = 0.0
 	zetsu = false
 	ren = false
+	gyo = false
+	ken_t = 0.0
+	en_t = 0.0
+	ko_strike = false
 	recoil_t = 0.0
 	attack_t = 0.0
 	dash_t = 0.0

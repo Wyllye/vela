@@ -67,6 +67,11 @@ func _leap(player: Player) -> void:
 	fx.emit(&"saltador_jump", {"pos": body.feet(), "big": aware})
 
 
+func _on_parried(_player: Player) -> void:
+	s = S.AIR
+	s_t = 0.0
+
+
 func _on_hit(player: Player, dir: int) -> void:
 	stun_t = 0.18
 	match dir:

@@ -75,3 +75,55 @@ func test_spikes_hazard_rect() -> void:
 	check(g.spike_hit(Rect2(64 + 4, 64 + 20, 10, 10)), "encostar na ponta machuca")
 	check(not g.spike_hit(Rect2(64 + 4, 64 - 12, 10, 10)), "acima do espinho não machuca")
 	check(g.spike_in(Rect2(60, 60, 40, 20)), "golpe para baixo enxerga o espinho")
+
+
+func test_hidden_platform_and_needles_work_like_the_visible_ones() -> void:
+	var g := LevelGrid.from_rows(PackedStringArray([
+		"##########",
+		"#........#",
+		"#..----..#",
+		"#........#",
+		"#..!!!!..#",
+		"##########",
+	]))
+	check(g.get_cell(3, 2) == LevelGrid.Tile.HIDDEN_ONE_WAY, "'-' é plataforma de aura escondida")
+	var b := _body(100, 0)
+	check(g.move_y(b, 200.0), "pousa na plataforma invisível")
+	check(is_equal_approx(b.pos.y + 44.0, 64.0), "pés em cima dela (y=%.2f)" % (b.pos.y + 44.0))
+	check(g.standing_only_on_one_way(b), "dá para descer dela como da de madeira")
+	var up := _body(100, 120)
+	check(not g.move_y(up, -60.0), "por baixo atravessa")
+	check(g.spike_hit(Rect2(100, 150, 20, 10)), "'!' fere como espinho")
+	check(g.spike_in(Rect2(96, 128, 30, 30)), "e aceita pogo")
+	check(not g.is_rock(4, 4) and not g.is_solid(4, 4), "agulhas não são parede")
+
+
+func test_loose_stone_falls_as_one_wall() -> void:
+	var g := LevelGrid.from_rows(PackedStringArray([
+		"##########",
+		"#..%.....#",
+		"#..%%..%.#",
+		"#..%...%.#",
+		"##########",
+	]))
+	check(g.is_solid(3, 2) and g.is_wall(3, 2), "pedra solta é parede")
+	check(not g.is_rock(3, 2), "mas não é rocha (não vira chão seguro)")
+	var broken := g.break_stone(Rect2(150, 70, 10, 10))
+	check(broken.size() == 4, "o golpe derruba o muro inteiro, 4 pedras (veio %d)" % broken.size())
+	check(g.get_cell(3, 1) == LevelGrid.Tile.EMPTY and g.get_cell(4, 2) == LevelGrid.Tile.EMPTY, "todas as pedras vizinhas")
+	check(g.get_cell(7, 2) == LevelGrid.Tile.STONE, "outro muro fica de pé")
+	check(g.break_stone(Rect2(40, 40, 10, 10)).is_empty(), "golpe no vazio não quebra nada")
+
+
+func test_gates_block_until_opened() -> void:
+	var g := LevelGrid.from_rows(PackedStringArray([
+		"######",
+		"#..|.#",
+		"#..|.#",
+		"######",
+	]))
+	var b := _body(40, 50)
+	b.size = Vector2(22, 30)
+	check(g.move_x(b, 200.0), "o portão segura")
+	check(g.open_gates().size() == 2, "o sino abre as duas grades")
+	check(not g.move_x(b, 40.0), "aberto, passa")

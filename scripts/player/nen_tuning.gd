@@ -1,6 +1,7 @@
 class_name NenTuning
 extends Resource
-## Números do Nen e da vida da Vela: aura, Vitalidade, Ten, Zetsu, Ren e dano.
+## Números do Nen e da vida da Vela: aura, Vitalidade, Ten, Zetsu, Ren, as
+## técnicas avançadas (Gyo, En, Shu, Ko, Ken) e dano.
 ## Edite em resources/nen_tuning.tres pelo Inspector do Godot.
 ## Aura em pontos (a chama cheia = aura_max), tempos em segundos.
 
@@ -55,3 +56,34 @@ extends Resource
 @export_group("Eco póstumo")
 ## Fração da aura máxima que fica com o Eco quando a Vela apaga.
 @export var shade_share := 0.34
+
+@export_group("Gyo e En")
+## Aura gasta por segundo com o Gyo aceso (e a aura não regenera).
+@export var gyo_drain := 5.0
+## Custo do En e quanto tempo ajoelhada até a aura se espalhar.
+@export var en_cost := 30.0
+@export var en_kneel_time := 0.45
+## Velocidade da onda do En (px/s) e alcance: até onde os Ecos sentem a Vela.
+@export var en_speed := 1100.0
+@export var en_alert_radius := 360.0
+
+@export_group("Shu")
+## Quanto o golpe alcança a mais com a aura no cajado (Ren aceso).
+@export var shu_reach := 1.55
+
+@export_group("Ko")
+## Aura mínima para concentrar o Ko (ele gasta toda a aura da chama).
+@export var ko_min_aura := 40.0
+## Tempo segurando o golpe até o Ko ficar pronto (e espera depois do golpe).
+@export var ko_charge_time := 0.7
+@export var ko_hold_delay := 0.1
+## Dano: base + 1 a cada tantos pontos de aura gastos.
+@export var ko_base_damage := 3
+@export var ko_aura_per_damage := 25.0
+
+@export_group("Ken")
+## Janela do Ken depois de abrir o Ren: o golpe que chegar é aparado.
+@export var ken_window := 0.3
+## Aura devolvida ao aparar e quanto tempo o Eco fica atordoado.
+@export var ken_refund := 15.0
+@export var ken_stun := 1.0

@@ -108,6 +108,11 @@ func _on_hit(player: Player, dir: int) -> void:
 	_go(S.RISE)
 
 
+func _on_parried(_player: Player) -> void:
+	_go(S.RISE)
+	cooldown = 2.4
+
+
 ## Voadora atordoada: plana e freia, sem gravidade.
 func _update_stunned(dt: float) -> void:
 	vel = vel.move_toward(Vector2.ZERO, 700.0 * dt)

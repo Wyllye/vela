@@ -117,6 +117,11 @@ func _on_hit(player: Player, dir: int) -> void:
 	s_t = RECOVER_TIME - 0.3
 
 
+## Ken: a investida bate na aura da Vela e o Vigia cambaleia para trás.
+func _on_parried(_player: Player) -> void:
+	_go(S.RECOVER)
+
+
 func _rage() -> float:
 	if s == S.NOTICE or s == S.CHARGE:
 		return 1.0

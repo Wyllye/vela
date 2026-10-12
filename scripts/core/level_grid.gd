@@ -11,10 +11,14 @@ extends RefCounted
 ##   ^ v < >  espinhos (a ponta aponta nessa direção)
 ##   ~  véu de aura (sólido, menos para quem está em Zetsu)
 ##   *  casca de aura (sólida; o Ren quebra)
+##   %  pedra solta de muro (sólida; o golpe com Shu ou o Ko quebra)
+##   -  plataforma de aura escondida com In (mão única; só o Gyo mostra)
+##   !  agulhas de aura escondidas com In (espinho para cima; só o Gyo mostra)
+##   |  portão de ferro (sólido até o sino tocar)
 ##   0-9  célula de porta (vazia; liga com outra sala)
 ##   .  vazio           qualquer outra letra = marcador de objeto (vela, estela...)
 
-enum Tile { EMPTY, SOLID, ONE_WAY, SPIKE, VEIL, SHELL }
+enum Tile { EMPTY, SOLID, ONE_WAY, SPIKE, VEIL, SHELL, STONE, HIDDEN_ONE_WAY, HIDDEN_SPIKE, GATE }
 enum SpikeDir { UP, DOWN, LEFT, RIGHT }
 
 const EPS := 0.001
@@ -66,6 +70,14 @@ static func from_rows(rows: PackedStringArray, ts: int = 32) -> LevelGrid:
 					tile = Tile.VEIL
 				"*":
 					tile = Tile.SHELL
+				"%":
+					tile = Tile.STONE
+				"-":
+					tile = Tile.HIDDEN_ONE_WAY
+				"!":
+					tile = Tile.HIDDEN_SPIKE
+				"|":
+					tile = Tile.GATE
 				".", " ":
 					pass
 				_:
@@ -92,7 +104,7 @@ func get_cell(c: int, r: int) -> int:
 	return Tile.SOLID
 
 
-## Bloqueia o movimento: rocha, casca de aura e véu fechado.
+## Bloqueia o movimento: rocha, casca de aura, pedra, portão e véu fechado.
 func is_solid(c: int, r: int) -> bool:
 	return _tile_blocks(get_cell(c, r))
 
@@ -103,13 +115,28 @@ func is_rock(c: int, r: int) -> bool:
 
 
 func _tile_blocks(t: int) -> bool:
-	return t == Tile.SOLID or t == Tile.SHELL or (t == Tile.VEIL and not veil_open)
+	return t == Tile.SOLID or t == Tile.SHELL or t == Tile.STONE or t == Tile.GATE or (t == Tile.VEIL and not veil_open)
 
 
-## Parede de verdade para deslizar e para o golpe faiscar (rocha ou casca, nunca véu).
+## Parede de verdade para deslizar e para o golpe faiscar (rocha, casca, pedra
+## ou portão; nunca véu).
 func is_wall(c: int, r: int) -> bool:
 	var t := get_cell(c, r)
-	return t == Tile.SOLID or t == Tile.SHELL
+	return t == Tile.SOLID or t == Tile.SHELL or t == Tile.STONE or t == Tile.GATE
+
+
+## Plataforma de mão única (a de madeira ou a de aura escondida com In).
+static func one_way_tile(t: int) -> bool:
+	return t == Tile.ONE_WAY or t == Tile.HIDDEN_ONE_WAY
+
+
+## Espinho (de pedra ou agulha de aura escondida com In).
+static func spike_tile(t: int) -> bool:
+	return t == Tile.SPIKE or t == Tile.HIDDEN_SPIKE
+
+
+func is_one_way(c: int, r: int) -> bool:
+	return one_way_tile(get_cell(c, r))
 
 
 func set_cell(c: int, r: int, t: int) -> void:
@@ -173,7 +200,7 @@ func move_y(b: GridBody, dy: float, drop_through: bool = false) -> bool:
 			var top := r * ts
 			for c in range(c0, c1 + 1):
 				var t := get_cell(c, r)
-				if _tile_blocks(t) or (t == Tile.ONE_WAY and not drop_through and top >= bottom - EPS):
+				if _tile_blocks(t) or (one_way_tile(t) and not drop_through and top >= bottom - EPS):
 					b.pos.y = top - h
 					return true
 	else:
@@ -210,7 +237,7 @@ func is_grounded(b: GridBody, ignore_one_way: bool = false) -> bool:
 		return false
 	for c in range(floori(b.pos.x / ts), floori((b.pos.x + b.size.x - EPS) / ts) + 1):
 		var t := get_cell(c, r)
-		if _tile_blocks(t) or (t == Tile.ONE_WAY and not ignore_one_way):
+		if _tile_blocks(t) or (one_way_tile(t) and not ignore_one_way):
 			return true
 	return false
 
@@ -224,7 +251,7 @@ func standing_only_on_one_way(b: GridBody) -> bool:
 		var t := get_cell(c, r)
 		if _tile_blocks(t):
 			return false
-		if t == Tile.ONE_WAY:
+		if one_way_tile(t):
 			any_one_way = true
 	return any_one_way
 
@@ -279,7 +306,6 @@ func overlaps_veil(p: Vector2, s: Vector2) -> bool:
 ## Devolve as células quebradas.
 func break_shells(center: Vector2, radius: float) -> Array[Vector2i]:
 	var ts := float(tile_size)
-	var out: Array[Vector2i] = []
 	var queue: Array[Vector2i] = []
 	var c0 := floori((center.x - radius) / ts)
 	var c1 := floori((center.x + radius) / ts)
@@ -292,9 +318,35 @@ func break_shells(center: Vector2, radius: float) -> Array[Vector2i]:
 			var nearest := Vector2(clampf(center.x, c * ts, (c + 1) * ts), clampf(center.y, r * ts, (r + 1) * ts))
 			if nearest.distance_to(center) <= radius:
 				queue.append(Vector2i(c, r))
+	return _flood_clear(queue, Tile.SHELL)
+
+
+## Quebra a pedra solta tocada pelo golpe (Shu ou Ko): o muro inteiro cai junto,
+## pedra por pedra vizinha. Devolve as células quebradas.
+func break_stone(rect: Rect2) -> Array[Vector2i]:
+	var ts := float(tile_size)
+	var r2 := rect.grow(2.0)
+	var queue: Array[Vector2i] = []
+	for r in range(floori(r2.position.y / ts), floori((r2.end.y - EPS) / ts) + 1):
+		for c in range(floori(r2.position.x / ts), floori((r2.end.x - EPS) / ts) + 1):
+			if c >= 0 and r >= 0 and c < width and r < height and cells[r * width + c] == Tile.STONE:
+				queue.append(Vector2i(c, r))
+	return _flood_clear(queue, Tile.STONE)
+
+
+## Abre todos os portões da sala (o sino tocou). Devolve as células abertas.
+func open_gates() -> Array[Vector2i]:
+	var out := cells_of(Tile.GATE)
+	for k in out:
+		cells[k.y * width + k.x] = Tile.EMPTY
+	return out
+
+
+func _flood_clear(queue: Array[Vector2i], tile: int) -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
 	while not queue.is_empty():
 		var k: Vector2i = queue.pop_back()
-		if k.x < 0 or k.y < 0 or k.x >= width or k.y >= height or cells[k.y * width + k.x] != Tile.SHELL:
+		if k.x < 0 or k.y < 0 or k.x >= width or k.y >= height or cells[k.y * width + k.x] != tile:
 			continue
 		cells[k.y * width + k.x] = Tile.EMPTY
 		out.append(k)
@@ -342,7 +394,7 @@ func spike_hit(rect: Rect2) -> bool:
 	var ts := float(tile_size)
 	for r in range(floori(rect.position.y / ts), floori((rect.end.y - EPS) / ts) + 1):
 		for c in range(floori(rect.position.x / ts), floori((rect.end.x - EPS) / ts) + 1):
-			if get_cell(c, r) == Tile.SPIKE and spike_rect(c, r).intersects(rect):
+			if spike_tile(get_cell(c, r)) and spike_rect(c, r).intersects(rect):
 				return true
 	return false
 
@@ -352,7 +404,7 @@ func spike_in(rect: Rect2) -> bool:
 	var ts := float(tile_size)
 	for r in range(floori(rect.position.y / ts), floori((rect.end.y - EPS) / ts) + 1):
 		for c in range(floori(rect.position.x / ts), floori((rect.end.x - EPS) / ts) + 1):
-			if get_cell(c, r) == Tile.SPIKE:
+			if spike_tile(get_cell(c, r)):
 				return true
 	return false
 

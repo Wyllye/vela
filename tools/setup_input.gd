@@ -13,14 +13,15 @@ func _initialize() -> void:
 		"jump": [_key(KEY_Z), _key(KEY_SPACE), _btn(JOY_BUTTON_A)],
 		"attack": [_key(KEY_X), _key(KEY_J), _btn(JOY_BUTTON_X)],
 		"dash": [_key(KEY_C), _key(KEY_K), _btn(JOY_BUTTON_RIGHT_SHOULDER), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)],
-		"zetsu": [_key(KEY_SHIFT), _btn(JOY_BUTTON_LEFT_SHOULDER), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
+		"zetsu": [_key(KEY_SHIFT), _btn(JOY_BUTTON_LEFT_SHOULDER)],
 		"ren": [_key(KEY_V), _key(KEY_L), _btn(JOY_BUTTON_Y)],
+		"gyo": [_key(KEY_F), _key(KEY_Q), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0)],
 		"pause": [_key(KEY_ESCAPE), _key(KEY_P), _btn(JOY_BUTTON_START)],
 		"toggle_music": [_key(KEY_M)],
 		"debug": [_key(KEY_F3)],
 	}
 	for action_name: String in actions:
-		var deadzone := MOVE_DEADZONE if action_name.begins_with("move_") or action_name in ["dash", "zetsu"] else 0.5
+		var deadzone := MOVE_DEADZONE if action_name.begins_with("move_") or action_name in ["dash", "zetsu", "gyo"] else 0.5
 		ProjectSettings.set_setting("input/" + action_name, {"deadzone": deadzone, "events": actions[action_name]})
 	var err := ProjectSettings.save()
 	print("Input Map salvo em project.godot (erro=%d)" % err)
